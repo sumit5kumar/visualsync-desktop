@@ -1,4 +1,4 @@
-import type { LocalProjectPaths, LocalRenderRequest } from "./contracts.js";
+import type { LocalOutputVideo, LocalProjectPaths, LocalRenderRequest } from "./contracts.js";
 
 declare global {
   interface Window {
@@ -13,6 +13,9 @@ declare global {
       openHostedRoute(route: "/" | "/projects" | "/timeline" | "/preview"): Promise<void>;
       getLocalProjectPaths(projectId: string): Promise<LocalProjectPaths | null>;
       saveLocalProjectPaths(projectId: string, paths: Omit<LocalProjectPaths, "updatedAt">): Promise<LocalProjectPaths>;
+      listOutputVideos(outputDirectory: string): Promise<LocalOutputVideo[]>;
+      openOutputDirectory(outputDirectory: string): Promise<void>;
+      openOutputVideo(videoPath: string): Promise<void>;
       runApprovedRender(request: LocalRenderRequest): Promise<void>;
       onRenderEvent(listener: (event: unknown) => void): () => void;
     };

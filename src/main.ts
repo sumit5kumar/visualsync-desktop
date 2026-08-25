@@ -2,8 +2,8 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell } from "elect
 import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import type { LocalProjectPaths, LocalRenderEvent, LocalRenderRequest } from "./contracts.js";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import type { LocalOutputVideo, LocalProjectPaths, LocalRenderEvent, LocalRenderRequest } from "./contracts.js";
 import { isHostedVisualSyncCallback, isHostedVisualSyncUrl } from "./security.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -27,6 +27,43 @@ async function loadPathStore(): Promise<LocalPathStore> {
 async function savePathStore(store: LocalPathStore) {
   await fs.mkdir(path.dirname(SETTINGS_FILE()), { recursive: true });
   await fs.writeFile(SETTINGS_FILE(), JSON.stringify(store, null, 2), "utf8");
+}
+
+async function requireConfiguredOutputDirectory(outputDirectory: string) {
+  const requestedDirectory = path.resolve(outputDirectory);
+  const savedDirectories = Object.values(await loadPathStore())
+    .map(paths => paths.outputDirectory)
+    .filter((directory): directory is string => Boolean(directory))
+    .map(directory => path.resolve(directory));
+  if (!savedDirectories.includes(requestedDirectory)) {
+    throw new Error("Save this local workspace before browsing its output folder.");
+  }
+  const stats = await fs.stat(requestedDirectory).catch(() => null);
+  if (!stats?.isDirectory()) throw new Error("The saved output folder is unavailable.");
+  return requestedDirectory;
+}
+
+async function listConfiguredOutputVideos(outputDirectory: string): Promise<LocalOutputVideo[]> {
+  const safeOutputDirectory = await requireConfiguredOutputDirectory(outputDirectory);
+  const entries = await fs.readdir(safeOutputDirectory, { withFileTypes: true });
+  const files = await Promise.all(entries
+    .filter(entry => entry.isFile() && path.extname(entry.name).toLowerCase() === ".mp4")
+    .map(async entry => {
+      const filePath = path.join(safeOutputDirectory, entry.name);
+      const stats = await fs.stat(filePath);
+      return { name: entry.name, path: filePath, fileUrl: pathToFileURL(filePath).toString(), byteSize: stats.size, modifiedAt: stats.mtime.toISOString(), modifiedMs: stats.mtimeMs };
+    }));
+  return files.sort((left, right) => right.modifiedMs - left.modifiedMs).map(({ modifiedMs: _modifiedMs, ...video }) => video);
+}
+
+async function requireConfiguredOutputVideo(videoPath: string) {
+  const resolvedVideoPath = path.resolve(videoPath);
+  if (path.extname(resolvedVideoPath).toLowerCase() !== ".mp4") throw new Error("Choose a valid rendered MP4 from the saved output folder.");
+  const safeOutputDirectory = await requireConfiguredOutputDirectory(path.dirname(resolvedVideoPath));
+  if (path.dirname(resolvedVideoPath) !== safeOutputDirectory) throw new Error("The selected video must be inside the saved output folder.");
+  const stats = await fs.stat(resolvedVideoPath).catch(() => null);
+  if (!stats?.isFile()) throw new Error("The selected rendered MP4 is unavailable.");
+  return resolvedVideoPath;
 }
 
 function focusedWindow() {
@@ -90,6 +127,17 @@ function registerLocalHandlers() {
     store[projectId] = next;
     await savePathStore(store);
     return next;
+  });
+  ipcMain.handle("local-preview:list-output-videos", async (_event, outputDirectory: string) => listConfiguredOutputVideos(outputDirectory));
+  ipcMain.handle("local-preview:open-output-directory", async (_event, outputDirectory: string) => {
+    const safeOutputDirectory = await requireConfiguredOutputDirectory(outputDirectory);
+    const error = await shell.openPath(safeOutputDirectory);
+    if (error) throw new Error(error);
+  });
+  ipcMain.handle("local-preview:open-output-video", async (_event, videoPath: string) => {
+    const safeVideoPath = await requireConfiguredOutputVideo(videoPath);
+    const error = await shell.openPath(safeVideoPath);
+    if (error) throw new Error(error);
   });
   ipcMain.handle("local-render:run", async (_event, request: LocalRenderRequest) => {
     requireWindowsExecutable(request.workerPath, ".ps1", "VisualSync worker");

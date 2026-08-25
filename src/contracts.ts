@@ -16,6 +16,14 @@ export type LocalRenderRequest = {
   workerPath: string;
 };
 
+export type LocalOutputVideo = {
+  name: string;
+  path: string;
+  fileUrl: string;
+  byteSize: number;
+  modifiedAt: string;
+};
+
 export type LocalRenderEvent =
   | { type: "started"; command: string }
   | { type: "output"; line: string }

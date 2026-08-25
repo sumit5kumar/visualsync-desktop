@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; media-src 'self' file:" />
     <title>VisualSync Desktop · Local workspace</title>
     <style>
       :root { color-scheme: dark; font-family: Inter, Segoe UI, sans-serif; background: #08111f; color: #eef7ff; }
@@ -12,7 +12,7 @@
       .eyebrow { color: #81e9fb; font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
       section { margin-top: 18px; border: 1px solid rgba(184, 220, 255, .12); border-radius: 18px; padding: 18px; background: rgba(10, 23, 40, .76); box-shadow: 0 18px 60px rgba(0, 0, 0, .16); }
       label { display: block; margin: 14px 0 7px; color: #d9ecfc; font-size: 12px; font-weight: 600; } input { width: 100%; border: 1px solid rgba(184, 220, 255, .14); border-radius: 10px; padding: 11px; background: rgba(255, 255, 255, .045); color: #f5fbff; }
-      .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 9px; align-items: center; } button { cursor: pointer; border: 1px solid rgba(139, 233, 248, .23); border-radius: 10px; padding: 10px 12px; color: #dffbff; background: rgba(100, 218, 241, .1); font-weight: 650; } button.primary { color: #062032; background: #8eeefa; border-color: #8eeefa; } button:hover { filter: brightness(1.1); } .actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 17px; } #status { min-height: 1.4em; margin-top: 13px; font-size: 12px; color: #90dce9; white-space: pre-wrap; } .hint { font-size: 12px; color: #71879c; }
+      .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 9px; align-items: center; } button { cursor: pointer; border: 1px solid rgba(139, 233, 248, .23); border-radius: 10px; padding: 10px 12px; color: #dffbff; background: rgba(100, 218, 241, .1); font-weight: 650; } button.primary { color: #062032; background: #8eeefa; border-color: #8eeefa; } button:hover { filter: brightness(1.1); } button:disabled { cursor: wait; opacity: .6; } .actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 17px; } .preview-shell { overflow: hidden; margin-top: 14px; border: 1px solid rgba(139, 233, 248, .16); border-radius: 14px; background: #030912; } video { display: block; width: 100%; max-height: 350px; background: #02060c; } select { width: 100%; border: 1px solid rgba(184, 220, 255, .14); border-radius: 10px; padding: 10px; background: rgba(255, 255, 255, .045); color: #f5fbff; } .preview-meta { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; color: #9cb2c7; font-size: 11px; } #renderLog { max-height: 124px; overflow: auto; margin: 12px 0 0; padding: 10px; border-radius: 10px; background: #050b14; color: #9fdfe9; font: 11px/1.45 Consolas, monospace; white-space: pre-wrap; } #status { min-height: 1.4em; margin-top: 13px; font-size: 12px; color: #90dce9; white-space: pre-wrap; } .hint { font-size: 12px; color: #71879c; }
     </style>
   </head>
   <body>
@@ -38,6 +38,15 @@
         <label for="workerPath">Latest VisualSync worker PS1</label><div class="row"><input id="workerPath" readonly /><button data-picker="workerPath">Choose</button></div>
         <label for="ffmpegPath">FFmpeg executable (optional)</label><div class="row"><input id="ffmpegPath" readonly /><button data-picker="ffmpegPath">Choose</button></div>
         <div class="actions"><button class="primary" id="save">Save local workspace</button><button id="render">Render approved video</button></div>
+        <pre id="renderLog" aria-live="polite">No render started from this desktop session.</pre>
+      </section>
+      <section>
+        <div class="eyebrow">Fast local video preview</div>
+        <p class="hint">Preview completed MP4 files directly from this Windows output folder. This does not wait for or modify the hosted Preview page.</p>
+        <label for="outputVideo">Recent output videos</label>
+        <select id="outputVideo" disabled><option>Save a local workspace, then refresh this list.</option></select>
+        <div class="actions"><button class="primary" id="refreshPreview">Refresh local preview</button><button id="openOutputFolder">Open output folder</button><button id="openOutputVideo" disabled>Open selected MP4</button></div>
+        <div class="preview-shell"><video id="localPreview" controls preload="metadata"></video><div class="preview-meta"><span id="previewName">No local MP4 selected</span><span id="previewDetails">Choose a saved output folder</span></div></div>
       </section>
       <section>
         <div class="eyebrow">Hosted workflow</div>
