@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+    <title>VisualSync Desktop · Local workspace</title>
+    <style>
+      :root { color-scheme: dark; font-family: Inter, Segoe UI, sans-serif; background: #08111f; color: #eef7ff; }
+      * { box-sizing: border-box; } body { margin: 0; background: radial-gradient(circle at 85% 0%, #103b4c 0, #08111f 46%); }
+      main { max-width: 760px; margin: 0 auto; padding: 30px; } h1 { margin: 0; font-size: 26px; } p { color: #a8bacb; line-height: 1.55; }
+      .eyebrow { color: #81e9fb; font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+      section { margin-top: 18px; border: 1px solid rgba(184, 220, 255, .12); border-radius: 18px; padding: 18px; background: rgba(10, 23, 40, .76); box-shadow: 0 18px 60px rgba(0, 0, 0, .16); }
+      label { display: block; margin: 14px 0 7px; color: #d9ecfc; font-size: 12px; font-weight: 600; } input { width: 100%; border: 1px solid rgba(184, 220, 255, .14); border-radius: 10px; padding: 11px; background: rgba(255, 255, 255, .045); color: #f5fbff; }
+      .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 9px; align-items: center; } button { cursor: pointer; border: 1px solid rgba(139, 233, 248, .23); border-radius: 10px; padding: 10px 12px; color: #dffbff; background: rgba(100, 218, 241, .1); font-weight: 650; } button.primary { color: #062032; background: #8eeefa; border-color: #8eeefa; } button:hover { filter: brightness(1.1); } .actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 17px; } #status { min-height: 1.4em; margin-top: 13px; font-size: 12px; color: #90dce9; white-space: pre-wrap; } .hint { font-size: 12px; color: #71879c; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="eyebrow">Local companion</div>
+      <h1>VisualSync Desktop workspace</h1>
+      <p>Save Windows paths locally for a project, then keep Timeline Generation in the signed-in hosted workflow. Once it is queued, the hosted job can continue after this app closes.</p>
+      <section>
+        <div class="eyebrow">Project binding</div>
+        <label for="projectId">Cloud project reference</label>
+        <input id="projectId" placeholder="Use a unique project id or name you choose for this device" />
+        <p class="hint">This local reference never replaces the hosted project. It only groups local Windows paths on this device.</p>
+      </section>
+      <section>
+        <div class="eyebrow">Local source and output</div>
+        <label for="narrationPath">Narration file</label><div class="row"><input id="narrationPath" readonly /><button data-picker="narrationPath">Choose</button></div>
+        <label for="sourceDirectory">Image source folder</label><div class="row"><input id="sourceDirectory" readonly /><button data-picker="sourceDirectory">Choose</button></div>
+        <label for="outputDirectory">MP4 output folder</label><div class="row"><input id="outputDirectory" readonly /><button data-picker="outputDirectory">Choose</button></div>
+      </section>
+      <section>
+        <div class="eyebrow">Approved local render</div>
+        <label for="handoffPath">Latest approved handoff JSON</label><div class="row"><input id="handoffPath" readonly /><button data-picker="handoffPath">Choose</button></div>
+        <label for="workerPath">Latest VisualSync worker PS1</label><div class="row"><input id="workerPath" readonly /><button data-picker="workerPath">Choose</button></div>
+        <label for="ffmpegPath">FFmpeg executable (optional)</label><div class="row"><input id="ffmpegPath" readonly /><button data-picker="ffmpegPath">Choose</button></div>
+        <div class="actions"><button class="primary" id="save">Save local workspace</button><button id="render">Render approved video</button></div>
+      </section>
+      <section>
+        <div class="eyebrow">Hosted workflow</div>
+        <p class="hint">Use the signed-in hosted app for upload, Timeline queue, review, and approval. The native buttons below return you to the same workflow without changing the web version.</p>
+        <div class="actions"><button data-route="/projects">Open Projects</button><button data-route="/timeline">Open Timeline</button><button data-route="/preview">Open Preview</button></div>
+      </section>
+      <div id="status"></div>
+    </main>
+    <script type="module" src="./local-workspace.js"></script>
+  </body>
+</html>

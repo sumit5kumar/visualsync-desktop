@@ -9,6 +9,8 @@ declare global {
       chooseNarration(): Promise<string | null>;
       chooseRenderHandoff(): Promise<string | null>;
       chooseWorker(): Promise<string | null>;
+      chooseFfmpeg(): Promise<string | null>;
+      openHostedRoute(route: "/" | "/projects" | "/timeline" | "/preview"): Promise<void>;
       getLocalProjectPaths(projectId: string): Promise<LocalProjectPaths | null>;
       saveLocalProjectPaths(projectId: string, paths: Omit<LocalProjectPaths, "updatedAt">): Promise<LocalProjectPaths>;
       runApprovedRender(request: LocalRenderRequest): Promise<void>;

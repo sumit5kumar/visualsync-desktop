@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld("visualSyncDesktop", {
   chooseNarration: () => ipcRenderer.invoke("local-paths:choose-narration") as Promise<string | null>,
   chooseRenderHandoff: () => ipcRenderer.invoke("local-render:choose-handoff") as Promise<string | null>,
   chooseWorker: () => ipcRenderer.invoke("local-render:choose-worker") as Promise<string | null>,
+  chooseFfmpeg: () => ipcRenderer.invoke("local-render:choose-ffmpeg") as Promise<string | null>,
+  openHostedRoute: (route: "/" | "/projects" | "/timeline" | "/preview") => ipcRenderer.invoke("hosted-navigation:open", route) as Promise<void>,
   getLocalProjectPaths: (projectId: string) => ipcRenderer.invoke("local-paths:get", projectId) as Promise<LocalProjectPaths | null>,
   saveLocalProjectPaths: (projectId: string, paths: Omit<LocalProjectPaths, "updatedAt">) => ipcRenderer.invoke("local-paths:save", projectId, paths) as Promise<LocalProjectPaths>,
   runApprovedRender: (request: LocalRenderRequest) => ipcRenderer.invoke("local-render:run", request) as Promise<void>,

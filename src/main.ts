@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, session, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell } from "electron";
 import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
@@ -12,6 +12,8 @@ const SETTINGS_FILE = () => path.join(app.getPath("userData"), "local-project-pa
 const SESSION_PARTITION = "persist:visualsync-desktop";
 
 type LocalPathStore = Record<string, LocalProjectPaths>;
+let hostedWindow: BrowserWindow | null = null;
+let localWorkspaceWindow: BrowserWindow | null = null;
 
 async function loadPathStore(): Promise<LocalPathStore> {
   try {
@@ -31,6 +33,11 @@ function focusedWindow() {
   const window = BrowserWindow.getFocusedWindow();
   if (!window) throw new Error("No VisualSync desktop window is open.");
   return window;
+}
+
+function activeHostedWindow() {
+  if (!hostedWindow || hostedWindow.isDestroyed()) throw new Error("The hosted VisualSync window is unavailable.");
+  return hostedWindow;
 }
 
 function emitRenderEvent(event: LocalRenderEvent) {
@@ -62,6 +69,18 @@ function registerLocalHandlers() {
   ipcMain.handle("local-render:choose-worker", async () => {
     const result = await dialog.showOpenDialog(focusedWindow(), { properties: ["openFile", "dontAddToRecent"], filters: [{ name: "VisualSync worker", extensions: ["ps1"] }] });
     return result.canceled ? null : result.filePaths[0] ?? null;
+  });
+  ipcMain.handle("local-render:choose-ffmpeg", async () => {
+    const result = await dialog.showOpenDialog(focusedWindow(), { properties: ["openFile", "dontAddToRecent"], filters: [{ name: "FFmpeg", extensions: ["exe"] }] });
+    return result.canceled ? null : result.filePaths[0] ?? null;
+  });
+  ipcMain.handle("hosted-navigation:open", async (_event, route: "/" | "/projects" | "/timeline" | "/preview") => {
+    const allowedRoutes = new Set(["/", "/projects", "/timeline", "/preview"]);
+    if (!allowedRoutes.has(route)) throw new Error("Unsupported hosted VisualSync route.");
+    const window = activeHostedWindow();
+    await window.loadURL(new URL(route, APP_URL).toString());
+    window.show();
+    window.focus();
   });
   ipcMain.handle("local-paths:get", async (_event, projectId: string) => (await loadPathStore())[projectId] ?? null);
   ipcMain.handle("local-paths:save", async (_event, projectId: string, paths: Omit<LocalProjectPaths, "updatedAt">) => {
@@ -101,6 +120,32 @@ function registerLocalHandlers() {
   });
 }
 
+function openLocalWorkspace() {
+  if (localWorkspaceWindow && !localWorkspaceWindow.isDestroyed()) {
+    localWorkspaceWindow.show();
+    localWorkspaceWindow.focus();
+    return;
+  }
+  localWorkspaceWindow = new BrowserWindow({
+    width: 780,
+    height: 760,
+    minWidth: 680,
+    minHeight: 620,
+    title: "VisualSync Desktop · Local workspace",
+    backgroundColor: "#08111f",
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      partition: SESSION_PARTITION,
+    },
+  });
+  localWorkspaceWindow.on("closed", () => { localWorkspaceWindow = null; });
+  void localWorkspaceWindow.loadFile(path.join(__dirname, "local-workspace.html"));
+}
+
 function createWindow() {
   const window = new BrowserWindow({
     width: 1440,
@@ -116,6 +161,8 @@ function createWindow() {
       partition: SESSION_PARTITION,
     },
   });
+  hostedWindow = window;
+  window.on("closed", () => { if (hostedWindow === window) hostedWindow = null; });
   const openHostedSignIn = (loginUrl: string) => {
     const authWindow = new BrowserWindow({
       width: 520,
@@ -161,6 +208,24 @@ function createWindow() {
 app.whenReady().then(() => {
   session.fromPartition(SESSION_PARTITION).setPermissionRequestHandler((_webContents, permission, callback) => callback(permission === "notifications"));
   registerLocalHandlers();
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    {
+      label: "VisualSync",
+      submenu: [
+        { label: "Local workspace", accelerator: "Ctrl+Shift+L", click: () => openLocalWorkspace() },
+        { type: "separator" },
+        { label: "Quit", role: "quit" },
+      ],
+    },
+    {
+      label: "Hosted workflow",
+      submenu: [
+        { label: "Projects", click: () => void activeHostedWindow().loadURL(new URL("/projects", APP_URL).toString()) },
+        { label: "Timeline", click: () => void activeHostedWindow().loadURL(new URL("/timeline", APP_URL).toString()) },
+        { label: "Preview", click: () => void activeHostedWindow().loadURL(new URL("/preview", APP_URL).toString()) },
+      ],
+    },
+  ]));
   createWindow();
   app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });

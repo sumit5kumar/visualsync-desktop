@@ -2,6 +2,9 @@ export type LocalProjectPaths = {
   sourceDirectory: string;
   outputDirectory: string;
   narrationPath: string;
+  handoffPath?: string;
+  workerPath?: string;
+  ffmpegPath?: string;
   updatedAt: string;
 };
 

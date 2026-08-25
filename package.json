@@ -9,7 +9,7 @@
     "dev": "tsx src/main.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "build": "tsc",
+    "build": "tsc && node scripts/copy-static.mjs",
     "start": "electron .",
     "dist:win": "pnpm build && electron-builder --win nsis"
   },
