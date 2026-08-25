@@ -11,13 +11,18 @@
     "test": "vitest run",
     "build": "tsc && node scripts/copy-static.mjs",
     "start": "electron .",
-    "dist:win": "pnpm build && electron-builder --win nsis"
+    "dist:win": "npm run build && electron-builder --win nsis"
   },
   "build": {
     "appId": "ai.visualsync.desktop",
     "productName": "VisualSync Desktop",
+    "directories": {
+      "output": "release"
+    },
     "files": [
       "dist/**/*",
+      "!dist/win-unpacked{,/**/*}",
+      "!dist/win-*{,/**/*}",
       "package.json"
     ],
     "win": {
