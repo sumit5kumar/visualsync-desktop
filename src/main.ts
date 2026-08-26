@@ -23,6 +23,7 @@ let hostedWindow: BrowserWindow | null = null;
 let localWorkspaceWindow: BrowserWindow | null = null;
 let desktopPreviewView: WebContentsView | null = null;
 let desktopPreviewRenderInProgress = false;
+let restoringHostedRouteAfterPreview = false;
 
 function previewRuntimeLog(message: string) {
   void fs.appendFile(path.join(app.getPath("userData"), "preview-runtime.log"), `${new Date().toISOString()} ${message}\n`).catch(() => undefined);
@@ -362,10 +363,20 @@ function createWindow() {
   });
   window.webContents.on("did-navigate-in-page", (_event, url) => {
     if (isHostedVisualSyncUrl(url, APP_URL) && new URL(url).pathname === "/preview") {
-      if (window.webContents.canGoBack()) window.webContents.goBack();
-      else void window.loadURL(APP_URL);
+      if (window.webContents.canGoBack()) {
+        restoringHostedRouteAfterPreview = true;
+        window.webContents.goBack();
+      } else void window.loadURL(APP_URL);
       openDesktopPreview();
+      return;
     }
+    if (restoringHostedRouteAfterPreview) {
+      restoringHostedRouteAfterPreview = false;
+      previewRuntimeLog(`retained preview after route restore=${url}`);
+      return;
+    }
+    previewRuntimeLog(`host in-page route=${url}`);
+    closeDesktopPreview();
   });
   void window.loadURL(APP_URL);
   window.webContents.once("did-finish-load", () => {

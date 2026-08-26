@@ -19,3 +19,4 @@
 - [x] Replace the separate native Preview window with an in-window desktop Preview overlay that preserves the hosted sidebar/workspace, shows a clear no-output state when no final MP4 exists, and provides one Render button.
 - [x] Complete runtime validation of the in-window BrowserView Preview overlay in the actual Windows executable without starting a render.
 - [ ] Define release licensing, code-signing, privacy, update, and support requirements before selling.
+- [x] Fix the desktop-only Preview overlay so it relinquishes interaction and allows hosted Home, Projects, Timeline, and other sidebar navigation immediately after Preview is opened.

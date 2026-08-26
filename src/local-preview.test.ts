@@ -19,6 +19,9 @@ describe("desktop Preview-only local MP4 preview", () => {
     expect(main).toContain("desktopPreviewView.setVisible(true)");
     expect(main).toContain("sandbox: false");
     expect(main).toContain("window.webContents.goBack()");
+    expect(main).toContain("host in-page route=");
+    expect(main).toContain("restoringHostedRouteAfterPreview");
+    expect(main).toContain("retained preview after route restore=");
     expect(main).toContain("VISUALSYNC_AUTO_PREVIEW");
     expect(main).toContain("--visualsync-auto-preview");
     expect(main).toContain('ipcMain.handle("desktop-preview:open"');
@@ -32,9 +35,11 @@ describe("desktop Preview-only local MP4 preview", () => {
     expect(main).toContain("JSON.stringify({ 0: { json: input ?? null } })");
     expect(preload).toContain("getDesktopPreview");
     expect(preload).toContain("renderDesktopPreview");
-    expect(preload).toContain("window.location.origin === hostedOrigin");
+    expect(preload).toContain("const isHostedPage = () => window.location.origin === hostedOrigin");
     expect(preload).toContain('ipcRenderer.invoke("desktop-preview:open")');
     expect(preload).toContain('ipcRenderer.invoke("desktop-preview:close")');
+    expect(preload).toContain('document.addEventListener("pointerdown"');
+    expect(preload).toContain('document.addEventListener("keydown"');
     expect(declaration).toContain("DesktopPreviewState");
   });
 

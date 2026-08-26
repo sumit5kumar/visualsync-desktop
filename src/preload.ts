@@ -3,8 +3,25 @@ import type { DesktopPreviewState, LocalOutputVideo, LocalProjectPaths, LocalRen
 
 const hostedOrigin = new URL(process.env.VISUALSYNC_APP_URL ?? "https://visualsync-pnpeq6e6.manus.space").origin;
 
-if (window.location.origin === hostedOrigin) {
-  document.addEventListener("click", event => {
+const isHostedPage = () => window.location.origin === hostedOrigin;
+
+document.addEventListener("pointerdown", event => {
+  if (!isHostedPage()) return;
+    if (event.button !== 0) return;
+    const anchor = event.composedPath().find(candidate => candidate instanceof HTMLAnchorElement) as HTMLAnchorElement | undefined;
+    if (anchor?.href) {
+      const target = new URL(anchor.href, window.location.href);
+      if (target.origin === hostedOrigin && target.pathname === "/preview") return;
+    }
+    // The local Preview covers only the hosted content pane. Any pointer event
+    // received by this hosted document therefore comes from its still-visible
+    // shell, such as a button-based sidebar item; remove the overlay before that
+    // original click proceeds.
+    void ipcRenderer.invoke("desktop-preview:close");
+}, true);
+
+document.addEventListener("click", event => {
+  if (!isHostedPage()) return;
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     const anchor = event.composedPath().find(candidate => candidate instanceof HTMLAnchorElement) as HTMLAnchorElement | undefined;
     if (!anchor?.href) return;
@@ -17,8 +34,12 @@ if (window.location.origin === hostedOrigin) {
       return;
     }
     void ipcRenderer.invoke("desktop-preview:close");
-  }, true);
-}
+}, true);
+
+document.addEventListener("keydown", event => {
+  if (!isHostedPage()) return;
+    if (event.key === "Enter" || event.key === " ") void ipcRenderer.invoke("desktop-preview:close");
+}, true);
 
 contextBridge.exposeInMainWorld("visualSyncDesktop", {
   isDesktopApp: true,
