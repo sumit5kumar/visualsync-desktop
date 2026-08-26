@@ -18,6 +18,7 @@ declare global {
       openOutputVideo(videoPath: string): Promise<void>;
       getDesktopPreview(): Promise<DesktopPreviewState>;
       renderDesktopPreview(): Promise<void>;
+      toggleDesktopPreviewFullscreen(): Promise<boolean>;
       runApprovedRender(request: LocalRenderRequest): Promise<void>;
       onRenderEvent(listener: (event: unknown) => void): () => void;
     };

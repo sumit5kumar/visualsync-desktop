@@ -26,6 +26,7 @@ export type LocalOutputVideo = {
 
 export type DesktopPreviewState = {
   projectId: number | null;
+  projectName: string | null;
   video: LocalOutputVideo | null;
   canRender: boolean;
   message: string;

@@ -25,3 +25,7 @@
 - [x] Provide a working fullscreen control for local MP4 playback in the desktop-only Preview without starting a render.
 - [x] Do not hibernate the connected Windows laptop; the earlier hibernation request was canceled by the user before execution.
 - [x] Run one user-authorized fast render for the existing 1:07 project and verify its final local MP4 before hibernation.
+- [x] Make the desktop-only Preview clearly identify the approved project and final video associated with its Render action without showing local paths or technical controls.
+- [x] Repair desktop-only Preview resolution when the current approved project’s saved output folder is unavailable, while preserving existing local outputs and no-render behavior.
+- [x] Preserve the specific project selected in the hosted Timeline when opening desktop Preview and when invoking its Render action; never replace it with the latest approved project.
+- [x] Make the desktop-only Preview fullscreen control reliably enter and exit fullscreen in the actual Windows executable.

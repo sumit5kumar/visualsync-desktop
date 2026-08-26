@@ -24,7 +24,8 @@ let localWorkspaceWindow: BrowserWindow | null = null;
 let desktopPreviewView: WebContentsView | null = null;
 let desktopPreviewRenderInProgress = false;
 let restoringHostedRouteAfterPreview = false;
-let desktopPreviewHtmlFullscreen = false;
+let desktopPreviewFullscreen = false;
+let desktopPreviewProjectId: number | null = null;
 
 function previewRuntimeLog(message: string) {
   void fs.appendFile(path.join(app.getPath("userData"), "preview-runtime.log"), `${new Date().toISOString()} ${message}\n`).catch(() => undefined);
@@ -32,7 +33,7 @@ function previewRuntimeLog(message: string) {
 
 function desktopPreviewBounds(window: BrowserWindow) {
   const [width, height] = window.getContentSize();
-  return desktopPreviewHtmlFullscreen
+  return desktopPreviewFullscreen
     ? { x: 0, y: 0, width: Math.max(1, width), height: Math.max(1, height) }
     : { x: 280, y: 60, width: Math.max(1, width - 280), height: Math.max(1, height - 60) };
 }
@@ -41,7 +42,7 @@ function positionDesktopPreview(window: BrowserWindow) {
   if (!desktopPreviewView) return;
   desktopPreviewView.setBounds(desktopPreviewBounds(window));
   desktopPreviewView.setVisible(true);
-  previewRuntimeLog(`bounds=${JSON.stringify(desktopPreviewView.getBounds())} visible=${desktopPreviewView.getVisible()} fullscreen=${desktopPreviewHtmlFullscreen}`);
+  previewRuntimeLog(`bounds=${JSON.stringify(desktopPreviewView.getBounds())} visible=${desktopPreviewView.getVisible()} fullscreen=${desktopPreviewFullscreen}`);
 }
 
 async function setHostedPreviewNavigationState(active: boolean) {
@@ -174,7 +175,8 @@ async function hostedTrpcQuery<T>(procedure: string, input?: unknown): Promise<T
   return payload.result.data.json as T;
 }
 
-async function latestApprovedHandoff(): Promise<ApprovedRenderHandoff> {
+async function latestApprovedHandoff(projectId: number | null = desktopPreviewProjectId): Promise<ApprovedRenderHandoff> {
+  if (projectId) return hostedTrpcQuery<ApprovedRenderHandoff>("worker.renderHandoff", { projectId });
   const projects = await hostedTrpcQuery<HostedProject[]>("project.list");
   const candidates = projects.filter(project => project.status === "timeline_ready" || project.status === "completed");
   if (!candidates.length) throw new Error("Approve a Timeline in the hosted app before using desktop Render.");
@@ -199,6 +201,16 @@ async function savedLocalPathsForHandoff(handoff: ApprovedRenderHandoff): Promis
   return paths?.sourceDirectory && paths.outputDirectory ? paths : null;
 }
 
+async function usableLocalPathsForHandoff(handoff: ApprovedRenderHandoff): Promise<LocalProjectPaths | null> {
+  const paths = await savedLocalPathsForHandoff(handoff);
+  if (!paths) return null;
+  const [sourceStats, outputStats] = await Promise.all([
+    fs.stat(paths.sourceDirectory).catch(() => null),
+    fs.stat(paths.outputDirectory).catch(() => null),
+  ]);
+  return sourceStats?.isDirectory() && outputStats?.isDirectory() ? paths : null;
+}
+
 async function choosePreviewFolders(handoff: ApprovedRenderHandoff): Promise<LocalProjectPaths> {
   const owner = activeHostedWindow();
   const source = await dialog.showOpenDialog(owner, { title: "Choose this project's image and narration folder", properties: ["openDirectory"] });
@@ -213,7 +225,7 @@ async function choosePreviewFolders(handoff: ApprovedRenderHandoff): Promise<Loc
 }
 
 async function localPathsForRender(handoff: ApprovedRenderHandoff): Promise<LocalProjectPaths> {
-  return (await savedLocalPathsForHandoff(handoff)) ?? choosePreviewFolders(handoff);
+  return (await usableLocalPathsForHandoff(handoff)) ?? choosePreviewFolders(handoff);
 }
 
 async function writeAtomically(destinationPath: string, content: string | Uint8Array) {
@@ -239,12 +251,12 @@ async function prepareRenderFiles(handoff: ApprovedRenderHandoff, paths: LocalPr
 async function desktopPreviewState(): Promise<DesktopPreviewState> {
   try {
     const handoff = await latestApprovedHandoff();
-    const paths = await savedLocalPathsForHandoff(handoff);
-    if (!paths) return { projectId: handoff.projectId, video: null, canRender: true, message: "Click Render once to choose this project's folders. They will be remembered automatically." };
+    const paths = await usableLocalPathsForHandoff(handoff);
+    if (!paths) return { projectId: handoff.projectId, projectName: handoff.projectName, video: null, canRender: true, message: "No final video is linked on this computer yet. Render will ask once for this project's folders and remember them." };
     const [video] = await listOutputVideos(paths.outputDirectory);
-    return { projectId: handoff.projectId, video: video ?? null, canRender: true, message: video ? "" : "Final output will appear here after Render completes." };
+    return { projectId: handoff.projectId, projectName: handoff.projectName, video: video ?? null, canRender: true, message: video ? "" : "Final video will appear here after Render completes." };
   } catch (error) {
-    return { projectId: null, video: null, canRender: false, message: error instanceof Error ? error.message : "Preview is unavailable." };
+    return { projectId: null, projectName: null, video: null, canRender: false, message: error instanceof Error ? error.message : "Preview is unavailable." };
   }
 }
 
@@ -265,6 +277,16 @@ async function runApprovedLocalRender(request: LocalRenderRequest) {
       else { const message = `Local render exited with code ${exitCode ?? "unknown"}.`; emitRenderEvent({ type: "failed", message }); reject(new Error(message)); }
     });
   });
+}
+
+function setDesktopPreviewFullscreen(fullscreen: boolean) {
+  const window = activeHostedWindow();
+  if (!desktopPreviewView) throw new Error("Open Preview before using fullscreen.");
+  desktopPreviewFullscreen = fullscreen;
+  window.setFullScreen(fullscreen);
+  positionDesktopPreview(window);
+  previewRuntimeLog(`preview native fullscreen=${fullscreen}`);
+  return fullscreen;
 }
 
 function registerLocalHandlers() {
@@ -295,7 +317,7 @@ function registerLocalHandlers() {
   ipcMain.handle("hosted-navigation:open", async (_event, route: "/" | "/projects" | "/timeline" | "/preview") => {
     const allowedRoutes = new Set(["/", "/projects", "/timeline", "/preview"]);
     if (!allowedRoutes.has(route)) throw new Error("Unsupported hosted VisualSync route.");
-    if (route === "/preview") return openDesktopPreview();
+    if (route === "/preview") return openDesktopPreview(null);
     const window = activeHostedWindow();
     await window.loadURL(new URL(route, APP_URL).toString());
     window.show();
@@ -319,9 +341,13 @@ function registerLocalHandlers() {
     const error = await shell.openPath(await requireConfiguredOutputVideo(videoPath));
     if (error) throw new Error(error);
   });
-  ipcMain.handle("desktop-preview:open", () => openDesktopPreview());
+  ipcMain.handle("desktop-preview:open", (_event, projectId: unknown) => {
+    desktopPreviewProjectId = typeof projectId === "number" && Number.isInteger(projectId) && projectId > 0 ? projectId : null;
+    return openDesktopPreview();
+  });
   ipcMain.handle("desktop-preview:close", () => closeDesktopPreview());
   ipcMain.handle("desktop-preview:get", () => desktopPreviewState());
+  ipcMain.handle("desktop-preview:toggle-fullscreen", () => setDesktopPreviewFullscreen(!desktopPreviewFullscreen));
   ipcMain.handle("desktop-preview:render", async () => {
     if (desktopPreviewRenderInProgress) throw new Error("A local render is already running.");
     desktopPreviewRenderInProgress = true;
@@ -344,7 +370,8 @@ function openLocalWorkspace() {
   void localWorkspaceWindow.loadFile(path.join(__dirname, "local-workspace.html"));
 }
 
-function openDesktopPreview() {
+function openDesktopPreview(projectId?: number | null) {
+  if (projectId !== undefined) desktopPreviewProjectId = projectId;
   const window = activeHostedWindow();
   previewRuntimeLog(`open requested existing=${Boolean(desktopPreviewView)} window=${window.id}`);
   if (!desktopPreviewView) {
@@ -372,7 +399,8 @@ function closeDesktopPreview() {
   if (!desktopPreviewView) return;
   previewRuntimeLog(`close requested view=${desktopPreviewView.webContents.id}`);
   const window = activeHostedWindow();
-  desktopPreviewHtmlFullscreen = false;
+  if (desktopPreviewFullscreen) window.setFullScreen(false);
+  desktopPreviewFullscreen = false;
   void setHostedPreviewNavigationState(false);
   window.contentView.removeChildView(desktopPreviewView);
   desktopPreviewView.webContents.close();
@@ -389,17 +417,27 @@ function createWindow() {
   window.on("resize", () => {
     positionDesktopPreview(window);
   });
-  window.on("enter-html-full-screen", () => {
+  window.on("enter-full-screen", () => {
     if (!desktopPreviewView) return;
-    desktopPreviewHtmlFullscreen = true;
+    desktopPreviewFullscreen = true;
     positionDesktopPreview(window);
-    previewRuntimeLog("preview entered HTML fullscreen");
+    previewRuntimeLog("preview entered native fullscreen");
+  });
+  window.on("leave-full-screen", () => {
+    if (!desktopPreviewView) return;
+    desktopPreviewFullscreen = false;
+    positionDesktopPreview(window);
+    previewRuntimeLog("preview left native fullscreen");
+  });
+  window.on("enter-html-full-screen", () => {
+    if (!desktopPreviewView || desktopPreviewFullscreen) return;
+    setDesktopPreviewFullscreen(true);
+    previewRuntimeLog("preview HTML fullscreen forwarded to native fullscreen");
   });
   window.on("leave-html-full-screen", () => {
-    if (!desktopPreviewView) return;
-    desktopPreviewHtmlFullscreen = false;
-    positionDesktopPreview(window);
-    previewRuntimeLog("preview left HTML fullscreen");
+    if (!desktopPreviewView || !desktopPreviewFullscreen) return;
+    setDesktopPreviewFullscreen(false);
+    previewRuntimeLog("preview HTML fullscreen exit forwarded to native fullscreen");
   });
   const openHostedSignIn = (loginUrl: string) => {
     const authWindow = new BrowserWindow({ width: 520, height: 720, parent: window, modal: true, autoHideMenuBar: true, webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, partition: SESSION_PARTITION } });
@@ -441,7 +479,7 @@ function createWindow() {
   });
   void window.loadURL(APP_URL);
   window.webContents.once("did-finish-load", () => {
-    if (process.env.VISUALSYNC_AUTO_PREVIEW === "1" || process.argv.includes("--visualsync-auto-preview")) setTimeout(openDesktopPreview, 350);
+    if (process.env.VISUALSYNC_AUTO_PREVIEW === "1" || process.argv.includes("--visualsync-auto-preview")) setTimeout(() => openDesktopPreview(null), 350);
   });
 }
 
@@ -453,7 +491,7 @@ app.whenReady().then(() => {
     { label: "Hosted workflow", submenu: [
       { label: "Projects", click: () => void activeHostedWindow().loadURL(new URL("/projects", APP_URL).toString()) },
       { label: "Timeline", click: () => void activeHostedWindow().loadURL(new URL("/timeline", APP_URL).toString()) },
-      { label: "Preview", click: () => openDesktopPreview() },
+      { label: "Preview", click: () => openDesktopPreview(null) },
     ] },
   ]));
   createWindow();

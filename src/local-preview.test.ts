@@ -10,7 +10,7 @@ describe("desktop Preview-only local MP4 preview", () => {
     const preload = readFileSync(resolve(root, "src/preload.ts"), "utf8");
     const declaration = readFileSync(resolve(root, "src/global.d.ts"), "utf8");
 
-    expect(main).toContain("function openDesktopPreview()");
+    expect(main).toContain("function openDesktopPreview(projectId?: number | null)");
     expect(main).toContain('new URL(url).pathname === "/preview"');
     expect(main).toContain('window.webContents.on("did-navigate-in-page"');
     expect(main).toContain("new WebContentsView");
@@ -18,6 +18,8 @@ describe("desktop Preview-only local MP4 preview", () => {
     expect(main).toContain("desktopPreviewView.setBounds");
     expect(main).toContain("desktopPreviewView.setVisible(true)");
     expect(main).toContain("setHostedPreviewNavigationState(true)");
+    expect(main).toContain('window.on("enter-full-screen"');
+    expect(main).toContain('window.on("leave-full-screen"');
     expect(main).toContain('window.on("enter-html-full-screen"');
     expect(main).toContain('window.on("leave-html-full-screen"');
     expect(main).toContain("sandbox: false");
@@ -31,6 +33,7 @@ describe("desktop Preview-only local MP4 preview", () => {
     expect(main).toContain('ipcMain.handle("desktop-preview:close"');
     expect(main).toContain("close requested view=");
     expect(main).toContain("requireConfiguredOutputDirectory");
+    expect(main).toContain("usableLocalPathsForHandoff");
     expect(main).toContain("async function choosePreviewFolders");
     expect(main).toContain("store[String(handoff.projectId)] = saved");
     expect(main).toContain("pathToFileURL(filePath).toString()");
@@ -39,7 +42,8 @@ describe("desktop Preview-only local MP4 preview", () => {
     expect(preload).toContain("getDesktopPreview");
     expect(preload).toContain("renderDesktopPreview");
     expect(preload).toContain("const isHostedPage = () => window.location.origin === hostedOrigin");
-    expect(preload).toContain('ipcRenderer.invoke("desktop-preview:open")');
+    expect(preload).toContain("selectedTimelineProjectId");
+    expect(preload).toContain('ipcRenderer.invoke("desktop-preview:open", selectedTimelineProjectId())');
     expect(preload).toContain('ipcRenderer.invoke("desktop-preview:close")');
     expect(preload).toContain('document.addEventListener("pointerdown"');
     expect(preload).toContain('document.addEventListener("keydown"');
@@ -54,18 +58,24 @@ describe("desktop Preview-only local MP4 preview", () => {
     expect(preview).toContain('id="outputVideo"');
     expect(preview).toContain('id="renderButton"');
     expect(preview).toContain('id="fullscreenButton"');
+    expect(preview).toContain('id="projectName"');
+    expect(preview).toContain('id="videoSummary"');
     expect(preview).toContain("aspect-ratio: 16 / 9");
-    expect(preview).toContain("height: min(56vh, 500px)");
+    expect(preview).toContain("height: min(48vh, 400px)");
+    expect(preview).toContain("justify-content: flex-start");
     expect(preview).toContain("object-fit: cover");
     expect(preview).toContain(".stage:fullscreen");
-    expect(behavior).toContain("videoStage.requestFullscreen()");
-    expect(behavior).toContain("document.exitFullscreen()");
+    expect(behavior).toContain("desktop.toggleDesktopPreviewFullscreen()");
     expect(preview).toContain("@media (prefers-reduced-motion: reduce)");
     expect(behavior).toContain('renderButton.addEventListener("click"');
     expect(behavior).toContain("desktop.renderDesktopPreview");
+    expect(behavior).toContain("preview.projectName");
+    expect(behavior).toContain("Latest final video ready");
     expect(main).toContain("prepareRenderFiles");
     expect(main).toContain("localPathsForRender(handoff)");
     expect(main).toContain('path.join(outputDirectory, "render-approved-handoff.ps1")');
     expect(main).toContain("latestApprovedHandoff");
+    expect(main).toContain("desktopPreviewProjectId");
+    expect(main).toContain("setDesktopPreviewFullscreen");
   });
 });

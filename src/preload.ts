@@ -5,6 +5,15 @@ const hostedOrigin = new URL(process.env.VISUALSYNC_APP_URL ?? "https://visualsy
 
 const isHostedPage = () => window.location.origin === hostedOrigin;
 
+function selectedTimelineProjectId() {
+  const fromSearch = Number(new URLSearchParams(window.location.search).get("project"));
+  if (Number.isInteger(fromSearch) && fromSearch > 0) return fromSearch;
+  const selection = Array.from(document.querySelectorAll<HTMLSelectElement>("select"))
+    .map(select => Number(select.value))
+    .find(value => Number.isInteger(value) && value > 0);
+  return selection ?? null;
+}
+
 document.addEventListener("pointerdown", event => {
   if (!isHostedPage()) return;
     if (event.button !== 0) return;
@@ -30,7 +39,7 @@ document.addEventListener("click", event => {
     if (target.pathname === "/preview") {
       event.preventDefault();
       event.stopImmediatePropagation();
-      void ipcRenderer.invoke("desktop-preview:open");
+      void ipcRenderer.invoke("desktop-preview:open", selectedTimelineProjectId());
       return;
     }
     void ipcRenderer.invoke("desktop-preview:close");
@@ -57,6 +66,7 @@ contextBridge.exposeInMainWorld("visualSyncDesktop", {
   openOutputVideo: (videoPath: string) => ipcRenderer.invoke("local-preview:open-output-video", videoPath) as Promise<void>,
   getDesktopPreview: () => ipcRenderer.invoke("desktop-preview:get") as Promise<DesktopPreviewState>,
   renderDesktopPreview: () => ipcRenderer.invoke("desktop-preview:render") as Promise<void>,
+  toggleDesktopPreviewFullscreen: () => ipcRenderer.invoke("desktop-preview:toggle-fullscreen") as Promise<boolean>,
   runApprovedRender: (request: LocalRenderRequest) => ipcRenderer.invoke("local-render:run", request) as Promise<void>,
   onRenderEvent: (listener: (event: unknown) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: unknown) => listener(payload);

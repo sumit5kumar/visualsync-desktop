@@ -5,6 +5,8 @@ const videoStage = document.getElementById("videoStage") as HTMLDivElement;
 const emptyState = document.getElementById("emptyState") as HTMLDivElement;
 const renderButton = document.getElementById("renderButton") as HTMLButtonElement;
 const fullscreenButton = document.getElementById("fullscreenButton") as HTMLButtonElement;
+const projectName = document.getElementById("projectName") as HTMLSpanElement;
+const videoSummary = document.getElementById("videoSummary") as HTMLSpanElement;
 const status = document.getElementById("status") as HTMLDivElement;
 let canRender = false;
 
@@ -13,11 +15,13 @@ async function refreshPreview() {
   const preview = await desktop.getDesktopPreview();
   canRender = preview.canRender;
   renderButton.disabled = !canRender;
+  projectName.textContent = preview.projectName ?? "No approved project";
   if (preview.video) {
     outputVideo.src = preview.video.fileUrl;
     outputVideo.hidden = false;
     fullscreenButton.hidden = false;
     emptyState.hidden = true;
+    videoSummary.textContent = "Latest final video ready";
     status.textContent = "Latest local output video is ready.";
   } else {
     outputVideo.removeAttribute("src");
@@ -25,6 +29,7 @@ async function refreshPreview() {
     outputVideo.hidden = true;
     fullscreenButton.hidden = true;
     emptyState.hidden = false;
+    videoSummary.textContent = "No final video on this computer yet";
     emptyState.textContent = preview.message;
     status.textContent = preview.message;
   }
@@ -33,17 +38,12 @@ async function refreshPreview() {
 
 fullscreenButton.addEventListener("click", async () => {
   try {
-    if (document.fullscreenElement) await document.exitFullscreen();
-    else await videoStage.requestFullscreen();
+    const active = await desktop.toggleDesktopPreviewFullscreen();
+    fullscreenButton.textContent = active ? "Exit fullscreen" : "Fullscreen";
+    fullscreenButton.setAttribute("aria-label", active ? "Exit fullscreen" : "Enter fullscreen");
   } catch (error) {
     status.textContent = error instanceof Error ? error.message : "Fullscreen is unavailable.";
   }
-});
-
-document.addEventListener("fullscreenchange", () => {
-  const active = document.fullscreenElement === videoStage;
-  fullscreenButton.textContent = active ? "Exit fullscreen" : "Fullscreen";
-  fullscreenButton.setAttribute("aria-label", active ? "Exit fullscreen" : "Enter fullscreen");
 });
 
 renderButton.addEventListener("click", async () => {

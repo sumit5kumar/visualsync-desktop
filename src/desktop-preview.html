@@ -9,8 +9,11 @@
       :root { color-scheme: dark; background: #030811; font-family: Inter, Segoe UI, sans-serif; }
       * { box-sizing: border-box; }
       body { height: 100vh; margin: 0; overflow: hidden; background: radial-gradient(900px 600px at 82% -12%, rgba(29, 126, 143, .23), transparent 64%), #030811; }
-      main { width: 100%; height: 100%; padding: clamp(16px, 2vw, 28px); display: grid; grid-template-rows: minmax(0, 1fr) auto; place-items: center; gap: 16px; overflow: hidden; }
-      .stage { overflow: hidden; position: relative; width: auto; height: min(56vh, 500px); max-width: 100%; aspect-ratio: 16 / 9; display: grid; place-items: stretch; border: 1px solid rgba(146, 232, 246, .16); border-radius: 22px; background: #01050a; box-shadow: 0 36px 100px rgba(0,0,0,.46); }
+      main { width: 100%; height: 100%; padding: clamp(16px, 2vw, 28px); display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 12px; overflow: hidden; }
+      .project-context { justify-self: start; display: grid; gap: 2px; padding: 8px 11px; border-left: 2px solid rgba(126, 235, 245, .68); color: #92a8bc; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; }
+      .project-context strong { color: #ebfbff; font-size: 14px; letter-spacing: 0; text-transform: none; }
+      .project-context em { color: #86dce8; font-size: 11px; font-style: normal; letter-spacing: .02em; text-transform: none; }
+      .stage { overflow: hidden; position: relative; width: auto; height: min(48vh, 400px); max-width: 100%; flex: 0 0 auto; aspect-ratio: 16 / 9; display: grid; place-items: stretch; border: 1px solid rgba(146, 232, 246, .16); border-radius: 22px; background: #01050a; box-shadow: 0 36px 100px rgba(0,0,0,.46); }
       video { display: block; width: 100%; height: 100%; max-height: none; object-fit: cover; background: #01050a; opacity: 1; transition: opacity 220ms cubic-bezier(.23,1,.32,1); }
       .stage:fullscreen { width: 100vw; height: 100vh; max-width: none; border: 0; border-radius: 0; background: #000; }
       .stage:fullscreen video { object-fit: contain; background: #000; }
@@ -18,7 +21,7 @@
       body.is-loading video { opacity: .25; }
       .empty { width: 100%; height: 100%; min-height: 0; display: grid; place-items: center; padding: 28px; color: #8ea2b7; text-align: center; font-size: 14px; line-height: 1.55; transition: opacity 180ms cubic-bezier(.23,1,.32,1), transform 180ms cubic-bezier(.23,1,.32,1); }
       .empty::before { content: ""; width: 38px; height: 38px; margin-bottom: 14px; border: 1px solid rgba(142,238,250,.26); border-radius: 50%; box-shadow: inset 0 0 0 8px rgba(142,238,250,.045); }
-      .actions { display: grid; place-items: center; margin-top: 18px; }
+      .actions { display: grid; place-items: center; margin-top: 0; }
       button { min-width: 204px; border: 1px solid rgba(196,250,255,.4); border-radius: 999px; padding: 13px 21px; cursor: pointer; background: linear-gradient(135deg, #9af3fc, #7fc8ff); color: #041a2a; font: 750 14px Inter, Segoe UI, sans-serif; letter-spacing: .01em; box-shadow: 0 10px 26px rgba(88,207,231,.22); transition: transform 160ms cubic-bezier(.23,1,.32,1), filter 160ms cubic-bezier(.23,1,.32,1), box-shadow 160ms cubic-bezier(.23,1,.32,1); }
       #fullscreenButton { position: absolute; z-index: 2; right: 14px; top: 14px; min-width: 0; padding: 8px 12px; border-radius: 999px; background: rgba(3, 13, 23, .72); border-color: rgba(196,250,255,.26); color: #d9faff; font-size: 12px; box-shadow: 0 8px 20px rgba(0,0,0,.26); opacity: 1; pointer-events: auto; }
       .stage:fullscreen #fullscreenButton { opacity: 1; pointer-events: auto; }
@@ -31,6 +34,7 @@
   </head>
   <body>
     <main>
+      <div class="project-context"><span>Selected approved project</span><strong id="projectName">Preparing project…</strong><em id="videoSummary"></em></div>
       <div id="videoStage" class="stage"><video id="outputVideo" controls preload="metadata" hidden></video><button id="fullscreenButton" type="button" aria-label="Enter fullscreen" hidden>Fullscreen</button><div id="emptyState" class="empty">Preparing your local preview…</div></div>
       <div class="actions"><button id="renderButton" type="button" disabled>Render video</button></div>
       <div id="status" class="sr-status" aria-live="polite"></div>
