@@ -7,6 +7,7 @@ const status = document.getElementById("status") as HTMLDivElement;
 let canRender = false;
 
 async function refreshPreview() {
+  document.body.classList.add("is-loading");
   const preview = await desktop.getDesktopPreview();
   canRender = preview.canRender;
   renderButton.disabled = !canRender;
@@ -23,12 +24,14 @@ async function refreshPreview() {
     emptyState.textContent = preview.message;
     status.textContent = preview.message;
   }
+  document.body.classList.remove("is-loading");
 }
 
 renderButton.addEventListener("click", async () => {
   if (!canRender) return;
   renderButton.disabled = true;
   renderButton.textContent = "Rendering…";
+  document.body.classList.add("is-loading");
   status.textContent = "Local render started.";
   try { await desktop.renderDesktopPreview(); }
   catch (error) { status.textContent = error instanceof Error ? error.message : "Local render failed."; }

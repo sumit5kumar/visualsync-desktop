@@ -130,7 +130,7 @@ async function latestApprovedHandoff(): Promise<ApprovedRenderHandoff> {
   throw lastError ?? new Error("No approved Timeline handoff is available.");
 }
 
-async function localPathsForHandoff(handoff: ApprovedRenderHandoff): Promise<LocalProjectPaths> {
+async function savedLocalPathsForHandoff(handoff: ApprovedRenderHandoff): Promise<LocalProjectPaths | null> {
   const store = await loadPathStore();
   const saved = Object.values(store);
   const samePath = (left: string | undefined | null, right: string | undefined | null) => Boolean(left && right && path.resolve(left) === path.resolve(right));
@@ -140,8 +140,24 @@ async function localPathsForHandoff(handoff: ApprovedRenderHandoff): Promise<Loc
     ?? (handoff.nativePaths.sourceDirectory && handoff.nativePaths.outputDirectory
       ? { sourceDirectory: handoff.nativePaths.sourceDirectory, outputDirectory: handoff.nativePaths.outputDirectory, narrationPath: "", updatedAt: new Date(0).toISOString() }
       : undefined);
-  if (!paths?.sourceDirectory || !paths.outputDirectory) throw new Error("Save this project's source and output paths once in the existing Local workspace before using Preview Render.");
-  return paths;
+  return paths?.sourceDirectory && paths.outputDirectory ? paths : null;
+}
+
+async function choosePreviewFolders(handoff: ApprovedRenderHandoff): Promise<LocalProjectPaths> {
+  const owner = desktopPreviewWindow && !desktopPreviewWindow.isDestroyed() ? desktopPreviewWindow : activeHostedWindow();
+  const source = await dialog.showOpenDialog(owner, { title: "Choose this project's image and narration folder", properties: ["openDirectory"] });
+  if (source.canceled || !source.filePaths[0]) throw new Error("Render was not started because a source folder was not selected.");
+  const output = await dialog.showOpenDialog(owner, { title: "Choose this project's output folder", properties: ["openDirectory", "createDirectory"] });
+  if (output.canceled || !output.filePaths[0]) throw new Error("Render was not started because an output folder was not selected.");
+  const store = await loadPathStore();
+  const saved: LocalProjectPaths = { sourceDirectory: source.filePaths[0], outputDirectory: output.filePaths[0], narrationPath: "", updatedAt: new Date().toISOString() };
+  store[String(handoff.projectId)] = saved;
+  await savePathStore(store);
+  return saved;
+}
+
+async function localPathsForRender(handoff: ApprovedRenderHandoff): Promise<LocalProjectPaths> {
+  return (await savedLocalPathsForHandoff(handoff)) ?? choosePreviewFolders(handoff);
 }
 
 async function writeAtomically(destinationPath: string, content: string | Uint8Array) {
@@ -167,7 +183,8 @@ async function prepareRenderFiles(handoff: ApprovedRenderHandoff, paths: LocalPr
 async function desktopPreviewState(): Promise<DesktopPreviewState> {
   try {
     const handoff = await latestApprovedHandoff();
-    const paths = await localPathsForHandoff(handoff);
+    const paths = await savedLocalPathsForHandoff(handoff);
+    if (!paths) return { projectId: handoff.projectId, video: null, canRender: true, message: "Click Render once to choose this project's folders. They will be remembered automatically." };
     const [video] = await listOutputVideos(paths.outputDirectory);
     return { projectId: handoff.projectId, video: video ?? null, canRender: true, message: video ? "" : "Final output will appear here after Render completes." };
   } catch (error) {
@@ -252,7 +269,7 @@ function registerLocalHandlers() {
     desktopPreviewRenderInProgress = true;
     try {
       const handoff = await latestApprovedHandoff();
-      const paths = await localPathsForHandoff(handoff);
+      const paths = await localPathsForRender(handoff);
       await runApprovedLocalRender(await prepareRenderFiles(handoff, paths));
     } finally { desktopPreviewRenderInProgress = false; }
   });

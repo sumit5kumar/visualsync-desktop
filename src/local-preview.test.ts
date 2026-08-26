@@ -13,7 +13,8 @@ describe("desktop Preview-only local MP4 preview", () => {
     expect(main).toContain("function openDesktopPreview()");
     expect(main).toContain('new URL(url).pathname === "/preview"');
     expect(main).toContain("requireConfiguredOutputDirectory");
-    expect(main).toContain("handoff.nativePaths.sourceDirectory && handoff.nativePaths.outputDirectory");
+    expect(main).toContain("async function choosePreviewFolders");
+    expect(main).toContain("store[String(handoff.projectId)] = saved");
     expect(main).toContain("pathToFileURL(filePath).toString()");
     expect(main).toContain('url.searchParams.set("batch", "1")');
     expect(main).toContain("JSON.stringify({ 0: { json: input ?? null } })");
@@ -29,9 +30,11 @@ describe("desktop Preview-only local MP4 preview", () => {
 
     expect(preview).toContain('id="outputVideo"');
     expect(preview).toContain('id="renderButton"');
+    expect(preview).toContain("@media (prefers-reduced-motion: reduce)");
     expect(behavior).toContain('renderButton.addEventListener("click"');
     expect(behavior).toContain("desktop.renderDesktopPreview");
     expect(main).toContain("prepareRenderFiles");
+    expect(main).toContain("localPathsForRender(handoff)");
     expect(main).toContain('path.join(outputDirectory, "render-approved-handoff.ps1")');
     expect(main).toContain("latestApprovedHandoff");
   });
