@@ -1,6 +1,21 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { DesktopPreviewState, LocalOutputVideo, LocalProjectPaths, LocalRenderRequest } from "./contracts.js";
 
+const hostedOrigin = new URL(process.env.VISUALSYNC_APP_URL ?? "https://visualsync-pnpeq6e6.manus.space").origin;
+
+if (window.location.origin === hostedOrigin) {
+  document.addEventListener("click", event => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const anchor = event.composedPath().find(candidate => candidate instanceof HTMLAnchorElement) as HTMLAnchorElement | undefined;
+    if (!anchor?.href) return;
+    const target = new URL(anchor.href, window.location.href);
+    if (target.origin !== hostedOrigin || target.pathname !== "/preview") return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    void ipcRenderer.invoke("desktop-preview:open");
+  }, true);
+}
+
 contextBridge.exposeInMainWorld("visualSyncDesktop", {
   isDesktopApp: true,
   chooseSourceDirectory: () => ipcRenderer.invoke("local-paths:choose-source-directory") as Promise<string | null>,

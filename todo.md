@@ -13,4 +13,6 @@
 - [x] Remove explicit Windows-path saving from the desktop workflow: silently retain first-time local selections and keep the Preview limited to final-video playback plus one Render/Export action.
 - [x] Polish only the desktop Preview presentation into a smooth, clean editor-style output surface with clear loading and render states and no technical clutter.
 - [x] Apply and verify the completed Preview-only desktop build in the executable folder the user actually launches, with the previous app archive retained as a timestamped backup.
+- [ ] Intercept only the hosted SPA Preview link in the desktop preload so it opens the native Preview/Render window without modifying hosted web code.
+- [ ] Handle Electron in-page hosted navigation to `/preview` and replace only the desktop view with the native Preview/Render surface after the preload click interception proved unreliable.
 - [ ] Define release licensing, code-signing, privacy, update, and support requirements before selling.

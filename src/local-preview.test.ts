@@ -12,6 +12,9 @@ describe("desktop Preview-only local MP4 preview", () => {
 
     expect(main).toContain("function openDesktopPreview()");
     expect(main).toContain('new URL(url).pathname === "/preview"');
+    expect(main).toContain('window.webContents.on("did-navigate-in-page"');
+    expect(main).toContain('window.loadFile(path.join(__dirname, "desktop-preview.html"))');
+    expect(main).toContain('ipcMain.handle("desktop-preview:open"');
     expect(main).toContain("requireConfiguredOutputDirectory");
     expect(main).toContain("async function choosePreviewFolders");
     expect(main).toContain("store[String(handoff.projectId)] = saved");
@@ -20,6 +23,8 @@ describe("desktop Preview-only local MP4 preview", () => {
     expect(main).toContain("JSON.stringify({ 0: { json: input ?? null } })");
     expect(preload).toContain("getDesktopPreview");
     expect(preload).toContain("renderDesktopPreview");
+    expect(preload).toContain("window.location.origin === hostedOrigin");
+    expect(preload).toContain('ipcRenderer.invoke("desktop-preview:open")');
     expect(declaration).toContain("DesktopPreviewState");
   });
 

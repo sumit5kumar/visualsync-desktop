@@ -21,7 +21,6 @@ type ApprovedRenderHandoff = {
 
 let hostedWindow: BrowserWindow | null = null;
 let localWorkspaceWindow: BrowserWindow | null = null;
-let desktopPreviewWindow: BrowserWindow | null = null;
 let desktopPreviewRenderInProgress = false;
 
 async function loadPathStore(): Promise<LocalPathStore> {
@@ -144,7 +143,7 @@ async function savedLocalPathsForHandoff(handoff: ApprovedRenderHandoff): Promis
 }
 
 async function choosePreviewFolders(handoff: ApprovedRenderHandoff): Promise<LocalProjectPaths> {
-  const owner = desktopPreviewWindow && !desktopPreviewWindow.isDestroyed() ? desktopPreviewWindow : activeHostedWindow();
+  const owner = activeHostedWindow();
   const source = await dialog.showOpenDialog(owner, { title: "Choose this project's image and narration folder", properties: ["openDirectory"] });
   if (source.canceled || !source.filePaths[0]) throw new Error("Render was not started because a source folder was not selected.");
   const output = await dialog.showOpenDialog(owner, { title: "Choose this project's output folder", properties: ["openDirectory", "createDirectory"] });
@@ -263,6 +262,7 @@ function registerLocalHandlers() {
     const error = await shell.openPath(await requireConfiguredOutputVideo(videoPath));
     if (error) throw new Error(error);
   });
+  ipcMain.handle("desktop-preview:open", () => openDesktopPreview());
   ipcMain.handle("desktop-preview:get", () => desktopPreviewState());
   ipcMain.handle("desktop-preview:render", async () => {
     if (desktopPreviewRenderInProgress) throw new Error("A local render is already running.");
@@ -287,13 +287,11 @@ function openLocalWorkspace() {
 }
 
 function openDesktopPreview() {
-  if (desktopPreviewWindow && !desktopPreviewWindow.isDestroyed()) { desktopPreviewWindow.show(); desktopPreviewWindow.focus(); return; }
-  desktopPreviewWindow = new BrowserWindow({
-    width: 980, height: 690, minWidth: 720, minHeight: 500, title: "VisualSync Desktop · Preview", backgroundColor: "#030912", autoHideMenuBar: true,
-    webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false, sandbox: true, partition: SESSION_PARTITION },
-  });
-  desktopPreviewWindow.on("closed", () => { desktopPreviewWindow = null; });
-  void desktopPreviewWindow.loadFile(path.join(__dirname, "desktop-preview.html"));
+  const window = activeHostedWindow();
+  const previewFile = pathToFileURL(path.join(__dirname, "desktop-preview.html")).toString();
+  if (window.webContents.getURL() !== previewFile) void window.loadFile(path.join(__dirname, "desktop-preview.html"));
+  window.show();
+  window.focus();
 }
 
 function createWindow() {
@@ -323,6 +321,9 @@ function createWindow() {
   window.webContents.on("will-navigate", (event, url) => {
     if (isHostedVisualSyncUrl(url, APP_URL) && new URL(url).pathname === "/preview") { event.preventDefault(); openDesktopPreview(); return; }
     if (!isHostedVisualSyncUrl(url, APP_URL)) { event.preventDefault(); openHostedSignIn(url); }
+  });
+  window.webContents.on("did-navigate-in-page", (_event, url) => {
+    if (isHostedVisualSyncUrl(url, APP_URL) && new URL(url).pathname === "/preview") openDesktopPreview();
   });
   void window.loadURL(APP_URL);
 }
