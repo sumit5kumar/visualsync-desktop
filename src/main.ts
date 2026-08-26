@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell, WebContentsView } from "electron";
 import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
@@ -21,8 +21,12 @@ type ApprovedRenderHandoff = {
 
 let hostedWindow: BrowserWindow | null = null;
 let localWorkspaceWindow: BrowserWindow | null = null;
-let desktopPreviewWindow: BrowserWindow | null = null;
+let desktopPreviewView: WebContentsView | null = null;
 let desktopPreviewRenderInProgress = false;
+
+function previewRuntimeLog(message: string) {
+  void fs.appendFile(path.join(app.getPath("userData"), "preview-runtime.log"), `${new Date().toISOString()} ${message}\n`).catch(() => undefined);
+}
 
 async function loadPathStore(): Promise<LocalPathStore> {
   try {
@@ -144,7 +148,7 @@ async function savedLocalPathsForHandoff(handoff: ApprovedRenderHandoff): Promis
 }
 
 async function choosePreviewFolders(handoff: ApprovedRenderHandoff): Promise<LocalProjectPaths> {
-  const owner = desktopPreviewWindow && !desktopPreviewWindow.isDestroyed() ? desktopPreviewWindow : activeHostedWindow();
+  const owner = activeHostedWindow();
   const source = await dialog.showOpenDialog(owner, { title: "Choose this project's image and narration folder", properties: ["openDirectory"] });
   if (source.canceled || !source.filePaths[0]) throw new Error("Render was not started because a source folder was not selected.");
   const output = await dialog.showOpenDialog(owner, { title: "Choose this project's output folder", properties: ["openDirectory", "createDirectory"] });
@@ -264,6 +268,7 @@ function registerLocalHandlers() {
     if (error) throw new Error(error);
   });
   ipcMain.handle("desktop-preview:open", () => openDesktopPreview());
+  ipcMain.handle("desktop-preview:close", () => closeDesktopPreview());
   ipcMain.handle("desktop-preview:get", () => desktopPreviewState());
   ipcMain.handle("desktop-preview:render", async () => {
     if (desktopPreviewRenderInProgress) throw new Error("A local render is already running.");
@@ -288,14 +293,38 @@ function openLocalWorkspace() {
 }
 
 function openDesktopPreview() {
-  if (desktopPreviewWindow && !desktopPreviewWindow.isDestroyed()) { desktopPreviewWindow.show(); desktopPreviewWindow.focus(); return; }
-  const parent = activeHostedWindow();
-  desktopPreviewWindow = new BrowserWindow({
-    width: 1040, height: 720, minWidth: 760, minHeight: 520, parent, title: "VisualSync Desktop · Preview", backgroundColor: "#030912", autoHideMenuBar: true,
-    webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false, sandbox: true, partition: SESSION_PARTITION },
-  });
-  desktopPreviewWindow.on("closed", () => { desktopPreviewWindow = null; });
-  void desktopPreviewWindow.loadFile(path.join(__dirname, "desktop-preview.html"));
+  const window = activeHostedWindow();
+  previewRuntimeLog(`open requested existing=${Boolean(desktopPreviewView)} window=${window.id}`);
+  if (!desktopPreviewView) {
+    desktopPreviewView = new WebContentsView({
+      webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false, sandbox: false, partition: SESSION_PARTITION },
+    });
+    previewRuntimeLog(`view created id=${desktopPreviewView.webContents.id}`);
+    desktopPreviewView.webContents.on("console-message", (_event, level, message, line, sourceId) => previewRuntimeLog(`console:${level} ${sourceId}:${line} ${message}`));
+    desktopPreviewView.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL) => {
+      previewRuntimeLog(`load:${errorCode} ${errorDescription} ${validatedURL}`);
+    });
+    desktopPreviewView.webContents.on("did-finish-load", () => previewRuntimeLog(`view loaded url=${desktopPreviewView?.webContents.getURL() ?? "closed"}`));
+    window.contentView.addChildView(desktopPreviewView);
+    desktopPreviewView.setVisible(true);
+    previewRuntimeLog(`view attached window=${window.id}`);
+    void desktopPreviewView.webContents.loadFile(path.join(__dirname, "desktop-preview.html")).catch(error => previewRuntimeLog(`load exception=${String(error)}`));
+  }
+  const [width, height] = window.getContentSize();
+  desktopPreviewView.setBounds({ x: 280, y: 60, width: Math.max(1, width - 280), height: Math.max(1, height - 60) });
+  desktopPreviewView.setVisible(true);
+  previewRuntimeLog(`bounds=${JSON.stringify(desktopPreviewView.getBounds())} visible=${desktopPreviewView.getVisible()}`);
+  window.show();
+  window.focus();
+}
+
+function closeDesktopPreview() {
+  if (!desktopPreviewView) return;
+  previewRuntimeLog(`close requested view=${desktopPreviewView.webContents.id}`);
+  const window = activeHostedWindow();
+  window.contentView.removeChildView(desktopPreviewView);
+  desktopPreviewView.webContents.close();
+  desktopPreviewView = null;
 }
 
 function createWindow() {
@@ -304,7 +333,12 @@ function createWindow() {
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false, sandbox: true, partition: SESSION_PARTITION },
   });
   hostedWindow = window;
-  window.on("closed", () => { if (hostedWindow === window) hostedWindow = null; });
+  window.on("closed", () => { desktopPreviewView = null; if (hostedWindow === window) hostedWindow = null; });
+  window.on("resize", () => {
+    if (!desktopPreviewView) return;
+    const [width, height] = window.getContentSize();
+    desktopPreviewView.setBounds({ x: 280, y: 60, width: Math.max(1, width - 280), height: Math.max(1, height - 60) });
+  });
   const openHostedSignIn = (loginUrl: string) => {
     const authWindow = new BrowserWindow({ width: 520, height: 720, parent: window, modal: true, autoHideMenuBar: true, webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, partition: SESSION_PARTITION } });
     const finishLogin = (url: string) => {
@@ -328,12 +362,15 @@ function createWindow() {
   });
   window.webContents.on("did-navigate-in-page", (_event, url) => {
     if (isHostedVisualSyncUrl(url, APP_URL) && new URL(url).pathname === "/preview") {
-      openDesktopPreview();
       if (window.webContents.canGoBack()) window.webContents.goBack();
       else void window.loadURL(APP_URL);
+      openDesktopPreview();
     }
   });
   void window.loadURL(APP_URL);
+  window.webContents.once("did-finish-load", () => {
+    if (process.env.VISUALSYNC_AUTO_PREVIEW === "1" || process.argv.includes("--visualsync-auto-preview")) setTimeout(openDesktopPreview, 350);
+  });
 }
 
 app.whenReady().then(() => {

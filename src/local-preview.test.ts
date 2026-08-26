@@ -13,9 +13,17 @@ describe("desktop Preview-only local MP4 preview", () => {
     expect(main).toContain("function openDesktopPreview()");
     expect(main).toContain('new URL(url).pathname === "/preview"');
     expect(main).toContain('window.webContents.on("did-navigate-in-page"');
-    expect(main).toContain('parent, title: "VisualSync Desktop · Preview"');
+    expect(main).toContain("new WebContentsView");
+    expect(main).toContain("window.contentView.addChildView(desktopPreviewView)");
+    expect(main).toContain("desktopPreviewView.setBounds");
+    expect(main).toContain("desktopPreviewView.setVisible(true)");
+    expect(main).toContain("sandbox: false");
     expect(main).toContain("window.webContents.goBack()");
+    expect(main).toContain("VISUALSYNC_AUTO_PREVIEW");
+    expect(main).toContain("--visualsync-auto-preview");
     expect(main).toContain('ipcMain.handle("desktop-preview:open"');
+    expect(main).toContain('ipcMain.handle("desktop-preview:close"');
+    expect(main).toContain("close requested view=");
     expect(main).toContain("requireConfiguredOutputDirectory");
     expect(main).toContain("async function choosePreviewFolders");
     expect(main).toContain("store[String(handoff.projectId)] = saved");
@@ -26,6 +34,7 @@ describe("desktop Preview-only local MP4 preview", () => {
     expect(preload).toContain("renderDesktopPreview");
     expect(preload).toContain("window.location.origin === hostedOrigin");
     expect(preload).toContain('ipcRenderer.invoke("desktop-preview:open")');
+    expect(preload).toContain('ipcRenderer.invoke("desktop-preview:close")');
     expect(declaration).toContain("DesktopPreviewState");
   });
 
@@ -36,6 +45,7 @@ describe("desktop Preview-only local MP4 preview", () => {
 
     expect(preview).toContain('id="outputVideo"');
     expect(preview).toContain('id="renderButton"');
+    expect(preview).toContain("max-height: calc(100vh - 340px)");
     expect(preview).toContain("@media (prefers-reduced-motion: reduce)");
     expect(behavior).toContain('renderButton.addEventListener("click"');
     expect(behavior).toContain("desktop.renderDesktopPreview");

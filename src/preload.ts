@@ -9,10 +9,14 @@ if (window.location.origin === hostedOrigin) {
     const anchor = event.composedPath().find(candidate => candidate instanceof HTMLAnchorElement) as HTMLAnchorElement | undefined;
     if (!anchor?.href) return;
     const target = new URL(anchor.href, window.location.href);
-    if (target.origin !== hostedOrigin || target.pathname !== "/preview") return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    void ipcRenderer.invoke("desktop-preview:open");
+    if (target.origin !== hostedOrigin) return;
+    if (target.pathname === "/preview") {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      void ipcRenderer.invoke("desktop-preview:open");
+      return;
+    }
+    void ipcRenderer.invoke("desktop-preview:close");
   }, true);
 }
 
