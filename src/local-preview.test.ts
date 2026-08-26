@@ -13,7 +13,8 @@ describe("desktop Preview-only local MP4 preview", () => {
     expect(main).toContain("function openDesktopPreview()");
     expect(main).toContain('new URL(url).pathname === "/preview"');
     expect(main).toContain('window.webContents.on("did-navigate-in-page"');
-    expect(main).toContain('window.loadFile(path.join(__dirname, "desktop-preview.html"))');
+    expect(main).toContain('parent, title: "VisualSync Desktop · Preview"');
+    expect(main).toContain("window.webContents.goBack()");
     expect(main).toContain('ipcMain.handle("desktop-preview:open"');
     expect(main).toContain("requireConfiguredOutputDirectory");
     expect(main).toContain("async function choosePreviewFolders");

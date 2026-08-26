@@ -15,4 +15,5 @@
 - [x] Apply and verify the completed Preview-only desktop build in the executable folder the user actually launches, with the previous app archive retained as a timestamped backup.
 - [ ] Intercept only the hosted SPA Preview link in the desktop preload so it opens the native Preview/Render window without modifying hosted web code.
 - [ ] Handle Electron in-page hosted navigation to `/preview` and replace only the desktop view with the native Preview/Render surface after the preload click interception proved unreliable.
+- [ ] Restore the hosted main window after the incorrect replacement approach, and open the native Preview as a separate desktop window so Timeline and every hosted screen remain intact.
 - [ ] Define release licensing, code-signing, privacy, update, and support requirements before selling.
