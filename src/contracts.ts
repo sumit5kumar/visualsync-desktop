@@ -24,6 +24,13 @@ export type LocalOutputVideo = {
   modifiedAt: string;
 };
 
+export type DesktopPreviewState = {
+  projectId: number | null;
+  video: LocalOutputVideo | null;
+  canRender: boolean;
+  message: string;
+};
+
 export type LocalRenderEvent =
   | { type: "started"; command: string }
   | { type: "output"; line: string }

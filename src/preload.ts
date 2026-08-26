@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { LocalOutputVideo, LocalProjectPaths, LocalRenderRequest } from "./contracts.js";
+import type { DesktopPreviewState, LocalOutputVideo, LocalProjectPaths, LocalRenderRequest } from "./contracts.js";
 
 contextBridge.exposeInMainWorld("visualSyncDesktop", {
   isDesktopApp: true,
@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld("visualSyncDesktop", {
   listOutputVideos: (outputDirectory: string) => ipcRenderer.invoke("local-preview:list-output-videos", outputDirectory) as Promise<LocalOutputVideo[]>,
   openOutputDirectory: (outputDirectory: string) => ipcRenderer.invoke("local-preview:open-output-directory", outputDirectory) as Promise<void>,
   openOutputVideo: (videoPath: string) => ipcRenderer.invoke("local-preview:open-output-video", videoPath) as Promise<void>,
+  getDesktopPreview: () => ipcRenderer.invoke("desktop-preview:get") as Promise<DesktopPreviewState>,
+  renderDesktopPreview: () => ipcRenderer.invoke("desktop-preview:render") as Promise<void>,
   runApprovedRender: (request: LocalRenderRequest) => ipcRenderer.invoke("local-render:run", request) as Promise<void>,
   onRenderEvent: (listener: (event: unknown) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: unknown) => listener(payload);

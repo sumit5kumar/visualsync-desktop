@@ -4,28 +4,35 @@ import { describe, expect, it } from "vitest";
 
 const root = process.cwd();
 
-describe("desktop-only local MP4 preview", () => {
-  it("exposes only restricted output-folder preview controls through the native bridge", () => {
+describe("desktop Preview-only local MP4 preview", () => {
+  it("opens a native Preview window and restricts output access to saved local directories", () => {
     const main = readFileSync(resolve(root, "src/main.ts"), "utf8");
     const preload = readFileSync(resolve(root, "src/preload.ts"), "utf8");
     const declaration = readFileSync(resolve(root, "src/global.d.ts"), "utf8");
 
-    expect(main).toContain('"local-preview:list-output-videos"');
+    expect(main).toContain("function openDesktopPreview()");
+    expect(main).toContain('new URL(url).pathname === "/preview"');
     expect(main).toContain("requireConfiguredOutputDirectory");
+    expect(main).toContain("handoff.nativePaths.sourceDirectory && handoff.nativePaths.outputDirectory");
     expect(main).toContain("pathToFileURL(filePath).toString()");
-    expect(preload).toContain("listOutputVideos");
-    expect(preload).toContain("openOutputVideo");
-    expect(declaration).toContain("LocalOutputVideo");
+    expect(main).toContain('url.searchParams.set("batch", "1")');
+    expect(main).toContain("JSON.stringify({ 0: { json: input ?? null } })");
+    expect(preload).toContain("getDesktopPreview");
+    expect(preload).toContain("renderDesktopPreview");
+    expect(declaration).toContain("DesktopPreviewState");
   });
 
-  it("keeps local preview separate from the hosted page and never launches a render automatically", () => {
-    const workspace = readFileSync(resolve(root, "src/local-workspace.html"), "utf8");
-    const behavior = readFileSync(resolve(root, "src/local-workspace.ts"), "utf8");
+  it("keeps preview UI to final video and a user-clicked render action while silently refreshing local render files", () => {
+    const preview = readFileSync(resolve(root, "src/desktop-preview.html"), "utf8");
+    const behavior = readFileSync(resolve(root, "src/desktop-preview.ts"), "utf8");
+    const main = readFileSync(resolve(root, "src/main.ts"), "utf8");
 
-    expect(workspace).toContain('id="localPreview"');
-    expect(workspace).toContain("This does not wait for or modify the hosted Preview page.");
-    expect(behavior).toContain("await desktop.runApprovedRender");
-    expect(behavior).toContain('document.getElementById("render")?.addEventListener("click"');
-    expect(behavior).toContain("desktop.listOutputVideos");
+    expect(preview).toContain('id="outputVideo"');
+    expect(preview).toContain('id="renderButton"');
+    expect(behavior).toContain('renderButton.addEventListener("click"');
+    expect(behavior).toContain("desktop.renderDesktopPreview");
+    expect(main).toContain("prepareRenderFiles");
+    expect(main).toContain('path.join(outputDirectory, "render-approved-handoff.ps1")');
+    expect(main).toContain("latestApprovedHandoff");
   });
 });

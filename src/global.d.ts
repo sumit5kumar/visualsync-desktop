@@ -1,4 +1,4 @@
-import type { LocalOutputVideo, LocalProjectPaths, LocalRenderRequest } from "./contracts.js";
+import type { DesktopPreviewState, LocalOutputVideo, LocalProjectPaths, LocalRenderRequest } from "./contracts.js";
 
 declare global {
   interface Window {
@@ -16,6 +16,8 @@ declare global {
       listOutputVideos(outputDirectory: string): Promise<LocalOutputVideo[]>;
       openOutputDirectory(outputDirectory: string): Promise<void>;
       openOutputVideo(videoPath: string): Promise<void>;
+      getDesktopPreview(): Promise<DesktopPreviewState>;
+      renderDesktopPreview(): Promise<void>;
       runApprovedRender(request: LocalRenderRequest): Promise<void>;
       onRenderEvent(listener: (event: unknown) => void): () => void;
     };
