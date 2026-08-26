@@ -1,8 +1,10 @@
 const desktop = window.visualSyncDesktop ?? (() => { throw new Error("VisualSync Desktop Preview is unavailable."); })();
 
 const outputVideo = document.getElementById("outputVideo") as HTMLVideoElement;
+const videoStage = document.getElementById("videoStage") as HTMLDivElement;
 const emptyState = document.getElementById("emptyState") as HTMLDivElement;
 const renderButton = document.getElementById("renderButton") as HTMLButtonElement;
+const fullscreenButton = document.getElementById("fullscreenButton") as HTMLButtonElement;
 const status = document.getElementById("status") as HTMLDivElement;
 let canRender = false;
 
@@ -14,18 +16,35 @@ async function refreshPreview() {
   if (preview.video) {
     outputVideo.src = preview.video.fileUrl;
     outputVideo.hidden = false;
+    fullscreenButton.hidden = false;
     emptyState.hidden = true;
     status.textContent = "Latest local output video is ready.";
   } else {
     outputVideo.removeAttribute("src");
     outputVideo.load();
     outputVideo.hidden = true;
+    fullscreenButton.hidden = true;
     emptyState.hidden = false;
     emptyState.textContent = preview.message;
     status.textContent = preview.message;
   }
   document.body.classList.remove("is-loading");
 }
+
+fullscreenButton.addEventListener("click", async () => {
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await videoStage.requestFullscreen();
+  } catch (error) {
+    status.textContent = error instanceof Error ? error.message : "Fullscreen is unavailable.";
+  }
+});
+
+document.addEventListener("fullscreenchange", () => {
+  const active = document.fullscreenElement === videoStage;
+  fullscreenButton.textContent = active ? "Exit fullscreen" : "Fullscreen";
+  fullscreenButton.setAttribute("aria-label", active ? "Exit fullscreen" : "Enter fullscreen");
+});
 
 renderButton.addEventListener("click", async () => {
   if (!canRender) return;

@@ -17,6 +17,9 @@ describe("desktop Preview-only local MP4 preview", () => {
     expect(main).toContain("window.contentView.addChildView(desktopPreviewView)");
     expect(main).toContain("desktopPreviewView.setBounds");
     expect(main).toContain("desktopPreviewView.setVisible(true)");
+    expect(main).toContain("setHostedPreviewNavigationState(true)");
+    expect(main).toContain('window.on("enter-html-full-screen"');
+    expect(main).toContain('window.on("leave-html-full-screen"');
     expect(main).toContain("sandbox: false");
     expect(main).toContain("window.webContents.goBack()");
     expect(main).toContain("host in-page route=");
@@ -50,7 +53,13 @@ describe("desktop Preview-only local MP4 preview", () => {
 
     expect(preview).toContain('id="outputVideo"');
     expect(preview).toContain('id="renderButton"');
-    expect(preview).toContain("max-height: calc(100vh - 340px)");
+    expect(preview).toContain('id="fullscreenButton"');
+    expect(preview).toContain("aspect-ratio: 16 / 9");
+    expect(preview).toContain("height: min(56vh, 500px)");
+    expect(preview).toContain("object-fit: cover");
+    expect(preview).toContain(".stage:fullscreen");
+    expect(behavior).toContain("videoStage.requestFullscreen()");
+    expect(behavior).toContain("document.exitFullscreen()");
     expect(preview).toContain("@media (prefers-reduced-motion: reduce)");
     expect(behavior).toContain('renderButton.addEventListener("click"');
     expect(behavior).toContain("desktop.renderDesktopPreview");

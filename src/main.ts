@@ -24,9 +24,60 @@ let localWorkspaceWindow: BrowserWindow | null = null;
 let desktopPreviewView: WebContentsView | null = null;
 let desktopPreviewRenderInProgress = false;
 let restoringHostedRouteAfterPreview = false;
+let desktopPreviewHtmlFullscreen = false;
 
 function previewRuntimeLog(message: string) {
   void fs.appendFile(path.join(app.getPath("userData"), "preview-runtime.log"), `${new Date().toISOString()} ${message}\n`).catch(() => undefined);
+}
+
+function desktopPreviewBounds(window: BrowserWindow) {
+  const [width, height] = window.getContentSize();
+  return desktopPreviewHtmlFullscreen
+    ? { x: 0, y: 0, width: Math.max(1, width), height: Math.max(1, height) }
+    : { x: 280, y: 60, width: Math.max(1, width - 280), height: Math.max(1, height - 60) };
+}
+
+function positionDesktopPreview(window: BrowserWindow) {
+  if (!desktopPreviewView) return;
+  desktopPreviewView.setBounds(desktopPreviewBounds(window));
+  desktopPreviewView.setVisible(true);
+  previewRuntimeLog(`bounds=${JSON.stringify(desktopPreviewView.getBounds())} visible=${desktopPreviewView.getVisible()} fullscreen=${desktopPreviewHtmlFullscreen}`);
+}
+
+async function setHostedPreviewNavigationState(active: boolean) {
+  const window = activeHostedWindow();
+  const script = `(() => {
+    const labels = new Set(["Home", "Projects", "AI Providers", "Timeline", "Preview", "Settings"]);
+    const candidates = [...document.querySelectorAll("a,button,[role=link],[role=button]")];
+    for (const element of candidates) {
+      const label = (element.textContent || "").replace(/\\s+/g, " ").trim();
+      if (!labels.has(label)) continue;
+      const item = element.closest("a,button,[role=link],[role=button]") || element;
+      if (${active ? "true" : "false"}) {
+        item.dataset.visualsyncDesktopPreviewItem = label === "Preview" ? "active" : "inactive";
+      } else {
+        delete item.dataset.visualsyncDesktopPreviewItem;
+      }
+    }
+  })()`;
+  try {
+    await window.webContents.insertCSS(`
+      [data-visualsync-desktop-preview-item="active"] {
+        background: linear-gradient(135deg, rgba(28, 100, 119, .45), rgba(11, 42, 55, .72)) !important;
+        border-color: rgba(126, 235, 245, .26) !important;
+        box-shadow: inset 0 0 0 1px rgba(126, 235, 245, .07), 0 8px 22px rgba(0, 0, 0, .16) !important;
+        color: #efffff !important;
+      }
+      [data-visualsync-desktop-preview-item="inactive"] {
+        background: transparent !important;
+        border-color: transparent !important;
+        box-shadow: none !important;
+      }
+    `);
+    await window.webContents.executeJavaScript(script, true);
+  } catch (error) {
+    previewRuntimeLog(`preview navigation state failed=${String(error)}`);
+  }
 }
 
 async function loadPathStore(): Promise<LocalPathStore> {
@@ -311,10 +362,8 @@ function openDesktopPreview() {
     previewRuntimeLog(`view attached window=${window.id}`);
     void desktopPreviewView.webContents.loadFile(path.join(__dirname, "desktop-preview.html")).catch(error => previewRuntimeLog(`load exception=${String(error)}`));
   }
-  const [width, height] = window.getContentSize();
-  desktopPreviewView.setBounds({ x: 280, y: 60, width: Math.max(1, width - 280), height: Math.max(1, height - 60) });
-  desktopPreviewView.setVisible(true);
-  previewRuntimeLog(`bounds=${JSON.stringify(desktopPreviewView.getBounds())} visible=${desktopPreviewView.getVisible()}`);
+  positionDesktopPreview(window);
+  setTimeout(() => { void setHostedPreviewNavigationState(true); }, 120);
   window.show();
   window.focus();
 }
@@ -323,6 +372,8 @@ function closeDesktopPreview() {
   if (!desktopPreviewView) return;
   previewRuntimeLog(`close requested view=${desktopPreviewView.webContents.id}`);
   const window = activeHostedWindow();
+  desktopPreviewHtmlFullscreen = false;
+  void setHostedPreviewNavigationState(false);
   window.contentView.removeChildView(desktopPreviewView);
   desktopPreviewView.webContents.close();
   desktopPreviewView = null;
@@ -336,9 +387,19 @@ function createWindow() {
   hostedWindow = window;
   window.on("closed", () => { desktopPreviewView = null; if (hostedWindow === window) hostedWindow = null; });
   window.on("resize", () => {
+    positionDesktopPreview(window);
+  });
+  window.on("enter-html-full-screen", () => {
     if (!desktopPreviewView) return;
-    const [width, height] = window.getContentSize();
-    desktopPreviewView.setBounds({ x: 280, y: 60, width: Math.max(1, width - 280), height: Math.max(1, height - 60) });
+    desktopPreviewHtmlFullscreen = true;
+    positionDesktopPreview(window);
+    previewRuntimeLog("preview entered HTML fullscreen");
+  });
+  window.on("leave-html-full-screen", () => {
+    if (!desktopPreviewView) return;
+    desktopPreviewHtmlFullscreen = false;
+    positionDesktopPreview(window);
+    previewRuntimeLog("preview left HTML fullscreen");
   });
   const openHostedSignIn = (loginUrl: string) => {
     const authWindow = new BrowserWindow({ width: 520, height: 720, parent: window, modal: true, autoHideMenuBar: true, webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, partition: SESSION_PARTITION } });

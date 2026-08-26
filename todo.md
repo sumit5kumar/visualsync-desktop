@@ -20,3 +20,8 @@
 - [x] Complete runtime validation of the in-window BrowserView Preview overlay in the actual Windows executable without starting a render.
 - [ ] Define release licensing, code-signing, privacy, update, and support requirements before selling.
 - [x] Fix the desktop-only Preview overlay so it relinquishes interaction and allows hosted Home, Projects, Timeline, and other sidebar navigation immediately after Preview is opened.
+- [x] Make the desktop-only native Preview overlay visibly activate the hosted Preview sidebar item while it is open.
+- [x] Fit final local MP4 playback into a clean 16:9 Preview frame without unwanted left/right black sidebars.
+- [x] Provide a working fullscreen control for local MP4 playback in the desktop-only Preview without starting a render.
+- [x] Do not hibernate the connected Windows laptop; the earlier hibernation request was canceled by the user before execution.
+- [x] Run one user-authorized fast render for the existing 1:07 project and verify its final local MP4 before hibernation.
