@@ -29,3 +29,16 @@
 - [x] Repair desktop-only Preview resolution when the current approved project’s saved output folder is unavailable, while preserving existing local outputs and no-render behavior.
 - [x] Preserve the specific project selected in the hosted Timeline when opening desktop Preview and when invoking its Render action; never replace it with the latest approved project.
 - [x] Make the desktop-only Preview fullscreen control reliably enter and exit fullscreen in the actual Windows executable.
+- [ ] Correct the desktop-only Preview selection handoff so a non-latest Timeline project remains selected both in Preview and after returning to Timeline.
+- [ ] Left-align the desktop-only Preview selected-project context and enlarge the normal in-app 16:9 player.
+- [ ] Make desktop-only Preview fullscreen expand the actual video stage, not only the outer application window.
+- [ ] Capture the desktop-only Preview action on pointer-down so Timeline project selection reaches the overlay before hosted Preview fallback navigation.
+- [ ] Persist the active hosted Timeline selector value in the desktop main process before Preview fallback navigation resolves a project.
+- [ ] Resolve the Timeline selector from the restored hosted document before desktop Preview obtains its approved handoff.
+- [ ] Retain the desktop-only Preview overlay after its selected Timeline route is restored, until the user explicitly leaves Preview.
+- [ ] Store the active Timeline project id in the desktop-only hosted route before Preview navigation can restore the latest project.
+- [ ] Refresh the desktop-only Preview state after Timeline selection resolution so an early latest-project load cannot remain visible.
+- [ ] Capture the active Timeline project directly before desktop Preview navigation to prevent fallback from using the latest project.
+- [ ] Replace desktop preload cross-context element checks with context-safe DOM structural checks for Timeline selection and Preview clicks.
+- [x] Add a desktop-only Preview project dropdown that selects the approved project, associated local video, and one-click Render target directly.
+- [x] Fix the desktop-only Preview dropdown popup so its option background and text remain readable in dark theme.

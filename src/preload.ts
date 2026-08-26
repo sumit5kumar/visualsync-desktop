@@ -1,26 +1,71 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { DesktopPreviewState, LocalOutputVideo, LocalProjectPaths, LocalRenderRequest } from "./contracts.js";
+import type { DesktopPreviewProject, DesktopPreviewState, LocalOutputVideo, LocalProjectPaths, LocalRenderRequest } from "./contracts.js";
 
 const hostedOrigin = new URL(process.env.VISUALSYNC_APP_URL ?? "https://visualsync-pnpeq6e6.manus.space").origin;
 
 const isHostedPage = () => window.location.origin === hostedOrigin;
 
+function elementFrom(candidate: EventTarget | null) {
+  return candidate && typeof candidate === "object" && "nodeType" in candidate ? candidate as Element : null;
+}
+
+function anchorFrom(event: Event) {
+  return event.composedPath().map(candidate => elementFrom(candidate)).find(element => element?.tagName === "A") as HTMLAnchorElement | undefined;
+}
+
 function selectedTimelineProjectId() {
   const fromSearch = Number(new URLSearchParams(window.location.search).get("project"));
   if (Number.isInteger(fromSearch) && fromSearch > 0) return fromSearch;
-  const selection = Array.from(document.querySelectorAll<HTMLSelectElement>("select"))
+  const selectors = Array.from(document.querySelectorAll<HTMLSelectElement>("select"));
+  const projectSelector = selectors.find(select => Array.from(select.options).some(option => option.textContent?.trim() === "Select project"));
+  const selection = [projectSelector, ...selectors.filter(select => select !== projectSelector)]
+    .filter((select): select is HTMLSelectElement => Boolean(select))
     .map(select => Number(select.value))
     .find(value => Number.isInteger(value) && value > 0);
   return selection ?? null;
 }
 
+function isPreviewControl(event: Event) {
+  return event.composedPath().map(candidate => elementFrom(candidate)).some(element => element?.textContent?.replace(/\s+/g, " ").trim() === "Preview");
+}
+
+function persistTimelineProjectRoute(projectId: number) {
+  const url = new URL(window.location.href);
+  if (url.pathname !== "/timeline" || url.searchParams.get("project") === String(projectId)) return;
+  url.searchParams.set("project", String(projectId));
+  history.replaceState(history.state, "", url);
+}
+
+document.addEventListener("change", event => {
+  const target = elementFrom(event.target);
+  if (!isHostedPage() || target?.tagName !== "SELECT") return;
+  const selector = target as HTMLSelectElement;
+  const isTimelineProjectSelector = Array.from(selector.options).some(option => option.textContent?.trim() === "Select project");
+  const projectId = isTimelineProjectSelector ? selectedTimelineProjectId() : null;
+  if (projectId) {
+    persistTimelineProjectRoute(projectId);
+    ipcRenderer.send("desktop-preview:timeline-selection", projectId);
+  }
+}, true);
+
 document.addEventListener("pointerdown", event => {
   if (!isHostedPage()) return;
     if (event.button !== 0) return;
-    const anchor = event.composedPath().find(candidate => candidate instanceof HTMLAnchorElement) as HTMLAnchorElement | undefined;
+    const anchor = anchorFrom(event);
     if (anchor?.href) {
       const target = new URL(anchor.href, window.location.href);
-      if (target.origin === hostedOrigin && target.pathname === "/preview") return;
+      if (target.origin === hostedOrigin && target.pathname === "/preview") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        void ipcRenderer.invoke("desktop-preview:open", selectedTimelineProjectId());
+        return;
+      }
+    }
+    if (isPreviewControl(event)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      void ipcRenderer.invoke("desktop-preview:open", selectedTimelineProjectId());
+      return;
     }
     // The local Preview covers only the hosted content pane. Any pointer event
     // received by this hosted document therefore comes from its still-visible
@@ -32,14 +77,18 @@ document.addEventListener("pointerdown", event => {
 document.addEventListener("click", event => {
   if (!isHostedPage()) return;
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    const anchor = event.composedPath().find(candidate => candidate instanceof HTMLAnchorElement) as HTMLAnchorElement | undefined;
+    if (isPreviewControl(event)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
+    const anchor = anchorFrom(event);
     if (!anchor?.href) return;
     const target = new URL(anchor.href, window.location.href);
     if (target.origin !== hostedOrigin) return;
     if (target.pathname === "/preview") {
       event.preventDefault();
       event.stopImmediatePropagation();
-      void ipcRenderer.invoke("desktop-preview:open", selectedTimelineProjectId());
       return;
     }
     void ipcRenderer.invoke("desktop-preview:close");
@@ -65,8 +114,20 @@ contextBridge.exposeInMainWorld("visualSyncDesktop", {
   openOutputDirectory: (outputDirectory: string) => ipcRenderer.invoke("local-preview:open-output-directory", outputDirectory) as Promise<void>,
   openOutputVideo: (videoPath: string) => ipcRenderer.invoke("local-preview:open-output-video", videoPath) as Promise<void>,
   getDesktopPreview: () => ipcRenderer.invoke("desktop-preview:get") as Promise<DesktopPreviewState>,
+  listDesktopPreviewProjects: () => ipcRenderer.invoke("desktop-preview:list-projects") as Promise<DesktopPreviewProject[]>,
+  selectDesktopPreviewProject: (projectId: number) => ipcRenderer.invoke("desktop-preview:select-project", projectId) as Promise<DesktopPreviewState>,
   renderDesktopPreview: () => ipcRenderer.invoke("desktop-preview:render") as Promise<void>,
   toggleDesktopPreviewFullscreen: () => ipcRenderer.invoke("desktop-preview:toggle-fullscreen") as Promise<boolean>,
+  onDesktopPreviewFullscreenChanged: (listener: (fullscreen: boolean) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, fullscreen: unknown) => listener(fullscreen === true);
+    ipcRenderer.on("desktop-preview:fullscreen-changed", handler);
+    return () => ipcRenderer.removeListener("desktop-preview:fullscreen-changed", handler);
+  },
+  onDesktopPreviewProjectChanged: (listener: () => void) => {
+    const handler = () => listener();
+    ipcRenderer.on("desktop-preview:project-changed", handler);
+    return () => ipcRenderer.removeListener("desktop-preview:project-changed", handler);
+  },
   runApprovedRender: (request: LocalRenderRequest) => ipcRenderer.invoke("local-render:run", request) as Promise<void>,
   onRenderEvent: (listener: (event: unknown) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: unknown) => listener(payload);

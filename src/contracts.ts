@@ -24,6 +24,11 @@ export type LocalOutputVideo = {
   modifiedAt: string;
 };
 
+export type DesktopPreviewProject = {
+  id: number;
+  name: string;
+};
+
 export type DesktopPreviewState = {
   projectId: number | null;
   projectName: string | null;

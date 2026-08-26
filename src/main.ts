@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import type { DesktopPreviewState, LocalOutputVideo, LocalProjectPaths, LocalRenderEvent, LocalRenderRequest } from "./contracts.js";
+import type { DesktopPreviewProject, DesktopPreviewState, LocalOutputVideo, LocalProjectPaths, LocalRenderEvent, LocalRenderRequest } from "./contracts.js";
 import { isHostedVisualSyncCallback, isHostedVisualSyncUrl } from "./security.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -26,6 +26,8 @@ let desktopPreviewRenderInProgress = false;
 let restoringHostedRouteAfterPreview = false;
 let desktopPreviewFullscreen = false;
 let desktopPreviewProjectId: number | null = null;
+let pendingDesktopPreviewOpen = false;
+let desktopPreviewRouteRestored = false;
 
 function previewRuntimeLog(message: string) {
   void fs.appendFile(path.join(app.getPath("userData"), "preview-runtime.log"), `${new Date().toISOString()} ${message}\n`).catch(() => undefined);
@@ -43,6 +45,14 @@ function positionDesktopPreview(window: BrowserWindow) {
   desktopPreviewView.setBounds(desktopPreviewBounds(window));
   desktopPreviewView.setVisible(true);
   previewRuntimeLog(`bounds=${JSON.stringify(desktopPreviewView.getBounds())} visible=${desktopPreviewView.getVisible()} fullscreen=${desktopPreviewFullscreen}`);
+}
+
+function publishDesktopPreviewFullscreenState(fullscreen: boolean) {
+  desktopPreviewView?.webContents.send("desktop-preview:fullscreen-changed", fullscreen);
+}
+
+function publishDesktopPreviewProjectChanged() {
+  desktopPreviewView?.webContents.send("desktop-preview:project-changed");
 }
 
 async function setHostedPreviewNavigationState(active: boolean) {
@@ -79,6 +89,40 @@ async function setHostedPreviewNavigationState(active: boolean) {
   } catch (error) {
     previewRuntimeLog(`preview navigation state failed=${String(error)}`);
   }
+}
+
+function restoreTimelineProjectIfNeeded(window: BrowserWindow, url: string) {
+  const navigatedUrl = new URL(url);
+  if (navigatedUrl.pathname !== "/timeline" || !desktopPreviewProjectId || navigatedUrl.searchParams.get("project") === String(desktopPreviewProjectId)) return false;
+  const selectedTimelineUrl = new URL(`/timeline?project=${desktopPreviewProjectId}`, APP_URL).toString();
+  previewRuntimeLog(`restoring timeline project=${desktopPreviewProjectId}`);
+  void window.loadURL(selectedTimelineUrl);
+  closeDesktopPreview();
+  return true;
+}
+
+async function resolveTimelineProjectSelection(window: BrowserWindow) {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      const projectId = await window.webContents.executeJavaScript(`(() => {
+        const select = Array.from(document.querySelectorAll("select")).find(element => Array.from(element.options).some(option => option.textContent?.trim() === "Select project"));
+        const value = Number(select?.value);
+        return Number.isInteger(value) && value > 0 ? value : null;
+      })()`, true) as number | null;
+      if (projectId) {
+        desktopPreviewProjectId = projectId;
+        publishDesktopPreviewProjectChanged();
+        previewRuntimeLog(`timeline project resolved=${projectId}`);
+        return projectId;
+      }
+    } catch (error) {
+      previewRuntimeLog(`timeline project resolve failed=${String(error)}`);
+      return null;
+    }
+    await new Promise(resolve => setTimeout(resolve, 180));
+  }
+  previewRuntimeLog("timeline project resolve unavailable");
+  return null;
 }
 
 async function loadPathStore(): Promise<LocalPathStore> {
@@ -175,6 +219,18 @@ async function hostedTrpcQuery<T>(procedure: string, input?: unknown): Promise<T
   return payload.result.data.json as T;
 }
 
+async function approvedPreviewProjects(): Promise<DesktopPreviewProject[]> {
+  const projects = await hostedTrpcQuery<HostedProject[]>("project.list");
+  const candidates = projects.filter(project => project.status === "timeline_ready" || project.status === "completed");
+  const settled = await Promise.allSettled(candidates.map(async project => {
+    const handoff = await hostedTrpcQuery<ApprovedRenderHandoff>("worker.renderHandoff", { projectId: project.id });
+    return { id: handoff.projectId, name: handoff.projectName };
+  }));
+  const approved = settled.flatMap(result => result.status === "fulfilled" ? [result.value] : []);
+  if (!approved.length) throw new Error("Approve a Timeline in the hosted app before using desktop Render.");
+  return approved;
+}
+
 async function latestApprovedHandoff(projectId: number | null = desktopPreviewProjectId): Promise<ApprovedRenderHandoff> {
   if (projectId) return hostedTrpcQuery<ApprovedRenderHandoff>("worker.renderHandoff", { projectId });
   const projects = await hostedTrpcQuery<HostedProject[]>("project.list");
@@ -186,6 +242,15 @@ async function latestApprovedHandoff(projectId: number | null = desktopPreviewPr
     catch (error) { lastError = error instanceof Error ? error : new Error("Approved Timeline handoff is unavailable."); }
   }
   throw lastError ?? new Error("No approved Timeline handoff is available.");
+}
+
+async function selectDesktopPreviewProject(projectId: number) {
+  const approved = await approvedPreviewProjects();
+  if (!approved.some(project => project.id === projectId)) throw new Error("That project does not have an approved Timeline for Preview yet.");
+  desktopPreviewProjectId = projectId;
+  publishDesktopPreviewProjectChanged();
+  previewRuntimeLog(`preview project selected=${projectId}`);
+  return desktopPreviewState();
 }
 
 async function savedLocalPathsForHandoff(handoff: ApprovedRenderHandoff): Promise<LocalProjectPaths | null> {
@@ -285,6 +350,7 @@ function setDesktopPreviewFullscreen(fullscreen: boolean) {
   desktopPreviewFullscreen = fullscreen;
   window.setFullScreen(fullscreen);
   positionDesktopPreview(window);
+  publishDesktopPreviewFullscreenState(fullscreen);
   previewRuntimeLog(`preview native fullscreen=${fullscreen}`);
   return fullscreen;
 }
@@ -343,10 +409,23 @@ function registerLocalHandlers() {
   });
   ipcMain.handle("desktop-preview:open", (_event, projectId: unknown) => {
     desktopPreviewProjectId = typeof projectId === "number" && Number.isInteger(projectId) && projectId > 0 ? projectId : null;
+    publishDesktopPreviewProjectChanged();
+    previewRuntimeLog(`preview requested project=${desktopPreviewProjectId ?? "latest"}`);
     return openDesktopPreview();
+  });
+  ipcMain.on("desktop-preview:timeline-selection", (_event, projectId: unknown) => {
+    if (typeof projectId !== "number" || !Number.isInteger(projectId) || projectId <= 0) return;
+    desktopPreviewProjectId = projectId;
+    publishDesktopPreviewProjectChanged();
+    previewRuntimeLog(`timeline project persisted=${projectId}`);
   });
   ipcMain.handle("desktop-preview:close", () => closeDesktopPreview());
   ipcMain.handle("desktop-preview:get", () => desktopPreviewState());
+  ipcMain.handle("desktop-preview:list-projects", () => approvedPreviewProjects());
+  ipcMain.handle("desktop-preview:select-project", (_event, projectId: unknown) => {
+    if (typeof projectId !== "number" || !Number.isInteger(projectId) || projectId <= 0) throw new Error("Choose a valid approved project.");
+    return selectDesktopPreviewProject(projectId);
+  });
   ipcMain.handle("desktop-preview:toggle-fullscreen", () => setDesktopPreviewFullscreen(!desktopPreviewFullscreen));
   ipcMain.handle("desktop-preview:render", async () => {
     if (desktopPreviewRenderInProgress) throw new Error("A local render is already running.");
@@ -401,6 +480,8 @@ function closeDesktopPreview() {
   const window = activeHostedWindow();
   if (desktopPreviewFullscreen) window.setFullScreen(false);
   desktopPreviewFullscreen = false;
+  pendingDesktopPreviewOpen = false;
+  desktopPreviewRouteRestored = false;
   void setHostedPreviewNavigationState(false);
   window.contentView.removeChildView(desktopPreviewView);
   desktopPreviewView.webContents.close();
@@ -421,12 +502,14 @@ function createWindow() {
     if (!desktopPreviewView) return;
     desktopPreviewFullscreen = true;
     positionDesktopPreview(window);
+    publishDesktopPreviewFullscreenState(true);
     previewRuntimeLog("preview entered native fullscreen");
   });
   window.on("leave-full-screen", () => {
     if (!desktopPreviewView) return;
     desktopPreviewFullscreen = false;
     positionDesktopPreview(window);
+    publishDesktopPreviewFullscreenState(false);
     previewRuntimeLog("preview left native fullscreen");
   });
   window.on("enter-html-full-screen", () => {
@@ -460,20 +543,53 @@ function createWindow() {
     if (isHostedVisualSyncUrl(url, APP_URL) && new URL(url).pathname === "/preview") { event.preventDefault(); openDesktopPreview(); return; }
     if (!isHostedVisualSyncUrl(url, APP_URL)) { event.preventDefault(); openHostedSignIn(url); }
   });
+  window.webContents.on("before-input-event", (_event, input) => {
+    if (input.type !== "mouseDown" || new URL(window.webContents.getURL()).pathname !== "/timeline") return;
+    void resolveTimelineProjectSelection(window);
+  });
   window.webContents.on("did-navigate-in-page", (_event, url) => {
     if (isHostedVisualSyncUrl(url, APP_URL) && new URL(url).pathname === "/preview") {
+      const selectedProjectId = desktopPreviewProjectId;
+      if (selectedProjectId) {
+        pendingDesktopPreviewOpen = false;
+        desktopPreviewRouteRestored = true;
+        void window.loadURL(new URL(`/timeline?project=${selectedProjectId}`, APP_URL).toString()).then(async () => {
+          await resolveTimelineProjectSelection(window);
+          openDesktopPreview();
+        });
+        return;
+      }
+      pendingDesktopPreviewOpen = true;
       if (window.webContents.canGoBack()) {
         restoringHostedRouteAfterPreview = true;
         window.webContents.goBack();
-      } else void window.loadURL(APP_URL);
-      openDesktopPreview();
+      } else {
+        void window.loadURL(APP_URL).then(async () => {
+          if (!pendingDesktopPreviewOpen) return;
+          pendingDesktopPreviewOpen = false;
+          await resolveTimelineProjectSelection(window);
+          openDesktopPreview();
+        });
+      }
       return;
     }
     if (restoringHostedRouteAfterPreview) {
       restoringHostedRouteAfterPreview = false;
+      if (pendingDesktopPreviewOpen) {
+        pendingDesktopPreviewOpen = false;
+        desktopPreviewRouteRestored = true;
+        void resolveTimelineProjectSelection(window).finally(() => openDesktopPreview());
+        return;
+      }
+      if (restoreTimelineProjectIfNeeded(window, url)) return;
       previewRuntimeLog(`retained preview after route restore=${url}`);
       return;
     }
+    if (desktopPreviewRouteRestored && new URL(url).pathname === "/timeline") {
+      previewRuntimeLog(`retained preview after selected timeline restore=${url}`);
+      return;
+    }
+    if (restoreTimelineProjectIfNeeded(window, url)) return;
     previewRuntimeLog(`host in-page route=${url}`);
     closeDesktopPreview();
   });

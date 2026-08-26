@@ -1,4 +1,4 @@
-import type { DesktopPreviewState, LocalOutputVideo, LocalProjectPaths, LocalRenderRequest } from "./contracts.js";
+import type { DesktopPreviewProject, DesktopPreviewState, LocalOutputVideo, LocalProjectPaths, LocalRenderEvent, LocalRenderRequest } from "./contracts.js";
 
 declare global {
   interface Window {
@@ -17,8 +17,12 @@ declare global {
       openOutputDirectory(outputDirectory: string): Promise<void>;
       openOutputVideo(videoPath: string): Promise<void>;
       getDesktopPreview(): Promise<DesktopPreviewState>;
+      listDesktopPreviewProjects(): Promise<DesktopPreviewProject[]>;
+      selectDesktopPreviewProject(projectId: number): Promise<DesktopPreviewState>;
       renderDesktopPreview(): Promise<void>;
       toggleDesktopPreviewFullscreen(): Promise<boolean>;
+      onDesktopPreviewFullscreenChanged(listener: (fullscreen: boolean) => void): () => void;
+      onDesktopPreviewProjectChanged(listener: () => void): () => void;
       runApprovedRender(request: LocalRenderRequest): Promise<void>;
       onRenderEvent(listener: (event: unknown) => void): () => void;
     };
