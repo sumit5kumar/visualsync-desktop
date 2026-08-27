@@ -333,11 +333,7 @@ async function selectDesktopPreviewProject(projectId: number) {
 
 async function savedLocalPathsForHandoff(handoff: ApprovedRenderHandoff): Promise<LocalProjectPaths | null> {
   const store = await loadPathStore();
-  const saved = Object.values(store);
-  const samePath = (left: string | undefined | null, right: string | undefined | null) => Boolean(left && right && path.resolve(left) === path.resolve(right));
   const paths = store[String(handoff.projectId)]
-    ?? saved.find(item => samePath(item.sourceDirectory, handoff.nativePaths.sourceDirectory) || samePath(item.outputDirectory, handoff.nativePaths.outputDirectory))
-    ?? (saved.length === 1 ? saved[0] : undefined)
     ?? (handoff.nativePaths.sourceDirectory && handoff.nativePaths.outputDirectory
       ? { sourceDirectory: handoff.nativePaths.sourceDirectory, outputDirectory: handoff.nativePaths.outputDirectory, narrationPath: "", updatedAt: new Date(0).toISOString() }
       : undefined);
@@ -508,8 +504,10 @@ function registerLocalHandlers() {
     if (error) throw new Error(error);
   });
   ipcMain.handle("desktop-preview:open", (_event, projectId: unknown) => {
-    desktopPreviewProjectId = typeof projectId === "number" && Number.isInteger(projectId) && projectId > 0 ? projectId : null;
-    publishDesktopPreviewProjectChanged();
+    if (projectId !== undefined) {
+      desktopPreviewProjectId = typeof projectId === "number" && Number.isInteger(projectId) && projectId > 0 ? projectId : null;
+      publishDesktopPreviewProjectChanged();
+    }
     previewRuntimeLog(`preview requested project=${desktopPreviewProjectId ?? "latest"}`);
     return openDesktopPreview();
   });

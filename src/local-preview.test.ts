@@ -125,6 +125,9 @@ describe("desktop Preview-only local MP4 preview", () => {
     expect(main).toContain('ipcMain.handle("desktop-preview:list-projects"');
     expect(main).toContain('ipcMain.handle("desktop-preview:select-project"');
     expect(main).toContain("desktopPreviewProjectId");
+    expect(main).toContain("store[String(handoff.projectId)]");
+    expect(main).not.toContain("saved.length === 1");
+    expect(main).toContain("if (projectId !== undefined)");
     expect(main).toContain("openDesktopPreview();");
     expect(main).toContain("window.webContents.goBack()");
     expect(main).toContain("retained preview after route restore=");

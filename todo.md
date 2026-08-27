@@ -64,3 +64,5 @@
 - [x] Show an explicit successful local-render completion state with elapsed time and final-video-ready confirmation.
 - [x] Cancel the currently active user-authorized local render safely.
 - [x] Automatically cancel the active local render process tree when the desktop application closes.
+- [x] Ensure each selected approved Preview project resolves only its own saved local video and Render folder, never another project's fallback mapping.
+- [x] Prevent stale desktop Preview refreshes from overwriting a newly chosen project selection.
