@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { DesktopPreviewProject, DesktopPreviewState, LocalOutputVideo, LocalProjectPaths, LocalRenderRequest } from "./contracts.js";
 
 const hostedOrigin = new URL(process.env.VISUALSYNC_APP_URL ?? "https://visualsync-pnpeq6e6.manus.space").origin;
+let openingDesktopPreview = false;
 
 const isHostedPage = () => window.location.origin === hostedOrigin;
 
@@ -27,6 +28,16 @@ function selectedTimelineProjectId() {
 
 function isPreviewControl(event: Event) {
   return event.composedPath().map(candidate => elementFrom(candidate)).some(element => element?.textContent?.replace(/\s+/g, " ").trim() === "Preview");
+}
+
+function openDesktopPreviewImmediately(event: Event) {
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  if (openingDesktopPreview) return;
+  openingDesktopPreview = true;
+  void ipcRenderer.invoke("desktop-preview:open").finally(() => {
+    setTimeout(() => { openingDesktopPreview = false; }, 300);
+  });
 }
 
 function persistTimelineProjectRoute(projectId: number) {
@@ -55,16 +66,12 @@ document.addEventListener("pointerdown", event => {
     if (anchor?.href) {
       const target = new URL(anchor.href, window.location.href);
       if (target.origin === hostedOrigin && target.pathname === "/preview") {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        void ipcRenderer.invoke("desktop-preview:open", selectedTimelineProjectId());
+        openDesktopPreviewImmediately(event);
         return;
       }
     }
     if (isPreviewControl(event)) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      void ipcRenderer.invoke("desktop-preview:open", selectedTimelineProjectId());
+      openDesktopPreviewImmediately(event);
       return;
     }
     // The local Preview covers only the hosted content pane. Any pointer event
@@ -74,12 +81,16 @@ document.addEventListener("pointerdown", event => {
     void ipcRenderer.invoke("desktop-preview:close");
 }, true);
 
+document.addEventListener("mousedown", event => {
+  if (!isHostedPage() || event.button !== 0 || !isPreviewControl(event)) return;
+  openDesktopPreviewImmediately(event);
+}, true);
+
 document.addEventListener("click", event => {
   if (!isHostedPage()) return;
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     if (isPreviewControl(event)) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
+      openDesktopPreviewImmediately(event);
       return;
     }
     const anchor = anchorFrom(event);
@@ -87,8 +98,7 @@ document.addEventListener("click", event => {
     const target = new URL(anchor.href, window.location.href);
     if (target.origin !== hostedOrigin) return;
     if (target.pathname === "/preview") {
-      event.preventDefault();
-      event.stopImmediatePropagation();
+      openDesktopPreviewImmediately(event);
       return;
     }
     void ipcRenderer.invoke("desktop-preview:close");

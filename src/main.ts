@@ -169,6 +169,21 @@ async function requireExistingOutputDirectory(outputDirectory: string) {
   return requestedDirectory;
 }
 
+async function resolveLocalFfmpegPath(configuredPath?: string) {
+  const configured = configuredPath?.trim();
+  if (configured) {
+    const stats = await fs.stat(configured).catch(() => null);
+    if (stats?.isFile()) return path.resolve(configured);
+  }
+  const environmentPath = Object.entries(process.env).find(([key]) => key.toUpperCase() === "PATH")?.[1] ?? "";
+  for (const directory of environmentPath.split(path.delimiter).filter(Boolean)) {
+    const candidate = path.join(directory, "ffmpeg.exe");
+    const stats = await fs.stat(candidate).catch(() => null);
+    if (stats?.isFile()) return candidate;
+  }
+  throw new Error("FFmpeg was not found. Install FFmpeg or select its executable once in the local workspace.");
+}
+
 async function listOutputVideos(outputDirectory: string): Promise<LocalOutputVideo[]> {
   const safeOutputDirectory = await requireExistingOutputDirectory(outputDirectory);
   const entries = await fs.readdir(safeOutputDirectory, { withFileTypes: true });
@@ -340,8 +355,8 @@ async function runApprovedLocalRender(request: LocalRenderRequest) {
   requireWindowsExecutable(request.workerPath, ".ps1", "VisualSync worker");
   requireWindowsExecutable(request.handoffPath, ".json", "approved handoff");
   if (!request.sourceDirectory || !request.outputDirectory) throw new Error("Choose the saved source and output folders before rendering.");
-  const argumentsList = ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", request.workerPath, "-HandoffPath", request.handoffPath, "-SourceDirectory", request.sourceDirectory, "-OutputDirectory", request.outputDirectory];
-  if (request.ffmpegPath?.trim()) argumentsList.push("-FFmpegPath", request.ffmpegPath.trim());
+  const ffmpegPath = await resolveLocalFfmpegPath(request.ffmpegPath);
+  const argumentsList = ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", request.workerPath, "-HandoffPath", request.handoffPath, "-SourceDirectory", request.sourceDirectory, "-OutputDirectory", request.outputDirectory, "-FFmpegPath", ffmpegPath];
   emitRenderEvent({ type: "started", command: `powershell.exe ${argumentsList.map(value => JSON.stringify(value)).join(" ")}` });
   await new Promise<void>((resolve, reject) => {
     const child = spawn("powershell.exe", argumentsList, { windowsHide: true });
@@ -359,7 +374,7 @@ function setDesktopPreviewFullscreen(fullscreen: boolean) {
   const window = activeHostedWindow();
   if (!desktopPreviewView) throw new Error("Open Preview before using fullscreen.");
   desktopPreviewFullscreen = fullscreen;
-  window.setFullScreen(fullscreen);
+  window.setKiosk(fullscreen);
   positionDesktopPreview(window);
   publishDesktopPreviewFullscreenState(fullscreen);
   previewRuntimeLog(`preview native fullscreen=${fullscreen}`);
@@ -505,7 +520,7 @@ function closeDesktopPreview() {
   if (!desktopPreviewView) return;
   previewRuntimeLog(`close requested view=${desktopPreviewView.webContents.id}`);
   const window = activeHostedWindow();
-  if (desktopPreviewFullscreen) window.setFullScreen(false);
+  if (desktopPreviewFullscreen) window.setKiosk(false);
   desktopPreviewFullscreen = false;
   pendingDesktopPreviewOpen = false;
   desktopPreviewRouteRestored = false;
@@ -580,47 +595,20 @@ function createWindow() {
   });
   window.webContents.on("did-navigate-in-page", (_event, url) => {
     if (isHostedVisualSyncUrl(url, APP_URL) && new URL(url).pathname === "/preview") {
-      const selectedProjectId = desktopPreviewProjectId;
-      if (selectedProjectId) {
-        pendingDesktopPreviewOpen = false;
-        desktopPreviewRouteRestored = true;
-        void window.loadURL(new URL(`/timeline?project=${selectedProjectId}`, APP_URL).toString()).then(async () => {
-          await resolveTimelineProjectSelection(window);
-          openDesktopPreview();
-        });
-        return;
-      }
-      pendingDesktopPreviewOpen = true;
+      openDesktopPreview();
       if (window.webContents.canGoBack()) {
         restoringHostedRouteAfterPreview = true;
         window.webContents.goBack();
       } else {
-        void window.loadURL(APP_URL).then(async () => {
-          if (!pendingDesktopPreviewOpen) return;
-          pendingDesktopPreviewOpen = false;
-          await resolveTimelineProjectSelection(window);
-          openDesktopPreview();
-        });
+        void window.loadURL(APP_URL);
       }
       return;
     }
     if (restoringHostedRouteAfterPreview) {
       restoringHostedRouteAfterPreview = false;
-      if (pendingDesktopPreviewOpen) {
-        pendingDesktopPreviewOpen = false;
-        desktopPreviewRouteRestored = true;
-        void resolveTimelineProjectSelection(window).finally(() => openDesktopPreview());
-        return;
-      }
-      if (restoreTimelineProjectIfNeeded(window, url)) return;
       previewRuntimeLog(`retained preview after route restore=${url}`);
       return;
     }
-    if (desktopPreviewRouteRestored && new URL(url).pathname === "/timeline") {
-      previewRuntimeLog(`retained preview after selected timeline restore=${url}`);
-      return;
-    }
-    if (restoreTimelineProjectIfNeeded(window, url)) return;
     previewRuntimeLog(`host in-page route=${url}`);
     closeDesktopPreview();
   });

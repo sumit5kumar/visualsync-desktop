@@ -52,3 +52,7 @@
 - [x] Keep desktop-only fullscreen playback controls visibly layered above the full-video surface.
 - [x] Recalculate the local Preview view bounds when the desktop window restores from minimized state.
 - [x] Show only one playback transport in desktop Preview fullscreen and remove the lower-stage gap.
+- [x] Make fullscreen local Preview use the full native window content area with no bottom strip.
+- [x] Prevent the hosted handoff page from becoming visible before the local Preview overlay opens.
+- [x] Diagnose and resolve the existing desktop Preview local-render exit-code-1 failure without changing its renderer pipeline.
+- [x] Reduce desktop-side navigation delay when the user clicks Timeline or Preview while preserving hosted workflows.
