@@ -116,6 +116,8 @@ describe("desktop Preview-only local MP4 preview", () => {
     expect(main).toContain("resolveLocalFfmpegPath");
     expect(main).toContain('"-FFmpegPath", ffmpegPath');
     expect(main).toContain("countGeneratedRenderFrames");
+    expect(main).toContain("renderOutputTail");
+    expect(main).toContain('replaceAll("& $FFmpegPath @fastArguments"');
     expect(main).toContain('"desktop-preview:cancel-render"');
     expect(main).toContain("cancelDesktopRenderOnClose");
     expect(main).toContain('window.on("close", cancelDesktopRenderOnClose)');

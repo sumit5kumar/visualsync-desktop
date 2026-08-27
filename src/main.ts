@@ -378,10 +378,13 @@ async function prepareRenderFiles(handoff: ApprovedRenderHandoff, paths: LocalPr
   const outputDirectory = await requireExistingOutputDirectory(paths.outputDirectory);
   const workerResponse = await activeHostedWindow().webContents.session.fetch(new URL("/api/project-media/latest-worker", APP_URL).toString());
   if (!workerResponse.ok) throw new Error(`The latest approved worker could not be refreshed (${workerResponse.status}).`);
+  const workerContent = Buffer.from(await workerResponse.arrayBuffer()).toString("utf8")
+    .replaceAll("& $FFmpegPath @fastArguments", "& $FFmpegPath \"-y\" @fastArguments")
+    .replaceAll("& $FFmpegPath @slowArguments", "& $FFmpegPath \"-y\" @slowArguments");
   const workerPath = path.join(outputDirectory, "render-approved-handoff.ps1");
   const handoffPath = path.join(outputDirectory, safeOutputFilename(handoff.projectName));
   await Promise.all([
-    writeAtomically(workerPath, new Uint8Array(await workerResponse.arrayBuffer())),
+    writeAtomically(workerPath, workerContent),
     writeAtomically(handoffPath, `${JSON.stringify(handoff, null, 2)}\n`),
   ]);
   return { workerPath, handoffPath, sourceDirectory: paths.sourceDirectory, outputDirectory, ffmpegPath: paths.ffmpegPath };
@@ -411,6 +414,12 @@ async function runApprovedLocalRender(request: LocalRenderRequest) {
     activeDesktopRender = child;
     desktopRenderCancellationRequested = false;
     let frameProgressTimer: ReturnType<typeof setInterval> | null = null;
+    let renderOutputTail = "";
+    const forwardRenderOutput = (chunk: unknown) => {
+      const line = String(chunk);
+      renderOutputTail = `${renderOutputTail}${line}`.slice(-4000);
+      emitRenderEvent({ type: "output", line });
+    };
     void renderPreparationFrameTarget(request.handoffPath).then(expectedFrames => {
       if (!expectedFrames || child.exitCode !== null) return;
       const reportProgress = () => {
@@ -421,8 +430,8 @@ async function runApprovedLocalRender(request: LocalRenderRequest) {
       reportProgress();
       frameProgressTimer = setInterval(reportProgress, 2000);
     });
-    child.stdout.on("data", chunk => emitRenderEvent({ type: "output", line: String(chunk) }));
-    child.stderr.on("data", chunk => emitRenderEvent({ type: "output", line: String(chunk) }));
+    child.stdout.on("data", forwardRenderOutput);
+    child.stderr.on("data", forwardRenderOutput);
     child.once("error", error => {
       if (frameProgressTimer) clearInterval(frameProgressTimer);
       if (activeDesktopRender === child) activeDesktopRender = null;
@@ -434,7 +443,12 @@ async function runApprovedLocalRender(request: LocalRenderRequest) {
       if (activeDesktopRender === child) activeDesktopRender = null;
       if (exitCode === 0) { emitRenderEvent({ type: "completed", exitCode }); resolve(); }
       else if (desktopRenderCancellationRequested) { const message = "Local render was cancelled."; emitRenderEvent({ type: "cancelled", message }); reject(new Error(message)); }
-      else { const message = `Local render exited with code ${exitCode ?? "unknown"}.`; emitRenderEvent({ type: "failed", message }); reject(new Error(message)); }
+      else {
+        const detail = renderOutputTail.replace(/\s+/g, " ").trim();
+        const message = detail ? `Local render exited with code ${exitCode ?? "unknown"}: ${detail}` : `Local render exited with code ${exitCode ?? "unknown"}.`;
+        emitRenderEvent({ type: "failed", message });
+        reject(new Error(message));
+      }
     });
   });
 }

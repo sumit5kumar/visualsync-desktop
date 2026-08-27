@@ -66,3 +66,5 @@
 - [x] Automatically cancel the active local render process tree when the desktop application closes.
 - [x] Ensure each selected approved Preview project resolves only its own saved local video and Render folder, never another project's fallback mapping.
 - [x] Prevent stale desktop Preview refreshes from overwriting a newly chosen project selection.
+- [ ] Diagnose and fix the current selected-project desktop local-render exit-code-1 failure so progress, estimate, cancellation, and completed state can run.
+- [x] Surface the selected-project worker's terminal error in the desktop Render panel rather than only a generic exit code.
