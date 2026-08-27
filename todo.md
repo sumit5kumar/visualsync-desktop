@@ -42,3 +42,13 @@
 - [ ] Replace desktop preload cross-context element checks with context-safe DOM structural checks for Timeline selection and Preview clicks.
 - [x] Add a desktop-only Preview project dropdown that selects the approved project, associated local video, and one-click Render target directly.
 - [x] Fix the desktop-only Preview dropdown popup so its option background and text remain readable in dark theme.
+- [x] Clean the Windows `new try` workspace while preserving the real VisualSync Desktop application and release files.
+- [x] Launch and confirm the preserved real VisualSync Desktop application before resuming workspace cleanup.
+- [x] Make the desktop-only Preview sidebar opening smooth and prevent any brief handoff/technical-content flash.
+- [x] Complete desktop-only video fullscreen so the player controls and progress timeline are visible without unused bottom space, including the native video fullscreen control.
+- [x] Add desktop-only local render progress and an honest time estimate without changing the renderer or pipeline.
+- [x] Move the desktop-injected AI Providers sidebar item between Preview and Settings without modifying hosted sidebar source.
+- [x] Prevent hidden desktop Preview prewarming from incorrectly highlighting Preview before the overlay is actually open.
+- [x] Keep desktop-only fullscreen playback controls visibly layered above the full-video surface.
+- [x] Recalculate the local Preview view bounds when the desktop window restores from minimized state.
+- [x] Show only one playback transport in desktop Preview fullscreen and remove the lower-stage gap.

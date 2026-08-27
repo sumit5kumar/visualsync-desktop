@@ -20,6 +20,7 @@ declare global {
       listDesktopPreviewProjects(): Promise<DesktopPreviewProject[]>;
       selectDesktopPreviewProject(projectId: number): Promise<DesktopPreviewState>;
       renderDesktopPreview(): Promise<void>;
+      setDesktopPreviewFullscreen(fullscreen: boolean): Promise<boolean>;
       toggleDesktopPreviewFullscreen(): Promise<boolean>;
       onDesktopPreviewFullscreenChanged(listener: (fullscreen: boolean) => void): () => void;
       onDesktopPreviewProjectChanged(listener: () => void): () => void;
