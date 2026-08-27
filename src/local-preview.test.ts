@@ -18,6 +18,7 @@ describe("desktop Preview-only local MP4 preview", () => {
     expect(main).toContain("desktopPreviewView.setBounds");
     expect(main).toContain("desktopPreviewView.setVisible(true)");
     expect(main).toContain('window.on("restore"');
+    expect(main).toContain("settleDesktopPreviewBounds");
     expect(main).toContain("setHostedPreviewNavigationState(true)");
     expect(main).toContain('window.on("enter-full-screen"');
     expect(main).toContain('window.on("leave-full-screen"');

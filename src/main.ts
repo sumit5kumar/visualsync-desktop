@@ -51,6 +51,14 @@ function positionDesktopPreview(window: BrowserWindow) {
   previewRuntimeLog(`bounds=${JSON.stringify(desktopPreviewView.getBounds())} visible=${desktopPreviewView.getVisible()} fullscreen=${desktopPreviewFullscreen}`);
 }
 
+function settleDesktopPreviewBounds(window: BrowserWindow, fullscreen: boolean) {
+  for (const delay of [0, 80, 220, 520]) {
+    setTimeout(() => {
+      if (!window.isDestroyed() && desktopPreviewFullscreen === fullscreen) positionDesktopPreview(window);
+    }, delay);
+  }
+}
+
 function publishDesktopPreviewFullscreenState(fullscreen: boolean) {
   desktopPreviewView?.webContents.send("desktop-preview:fullscreen-changed", fullscreen);
 }
@@ -376,6 +384,7 @@ function setDesktopPreviewFullscreen(fullscreen: boolean) {
   desktopPreviewFullscreen = fullscreen;
   window.setKiosk(fullscreen);
   positionDesktopPreview(window);
+  settleDesktopPreviewBounds(window, fullscreen);
   publishDesktopPreviewFullscreenState(fullscreen);
   previewRuntimeLog(`preview native fullscreen=${fullscreen}`);
   return fullscreen;
@@ -543,12 +552,13 @@ function createWindow() {
     positionDesktopPreview(window);
   });
   window.on("restore", () => {
-    setTimeout(() => positionDesktopPreview(window), 0);
+    settleDesktopPreviewBounds(window, desktopPreviewFullscreen);
   });
   window.on("enter-full-screen", () => {
     if (!desktopPreviewView) return;
     desktopPreviewFullscreen = true;
     positionDesktopPreview(window);
+    settleDesktopPreviewBounds(window, true);
     publishDesktopPreviewFullscreenState(true);
     previewRuntimeLog("preview entered native fullscreen");
   });
@@ -556,6 +566,7 @@ function createWindow() {
     if (!desktopPreviewView) return;
     desktopPreviewFullscreen = false;
     positionDesktopPreview(window);
+    settleDesktopPreviewBounds(window, false);
     publishDesktopPreviewFullscreenState(false);
     previewRuntimeLog("preview left native fullscreen");
   });

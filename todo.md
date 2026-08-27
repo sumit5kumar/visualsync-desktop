@@ -56,3 +56,6 @@
 - [x] Prevent the hosted handoff page from becoming visible before the local Preview overlay opens.
 - [x] Diagnose and resolve the existing desktop Preview local-render exit-code-1 failure without changing its renderer pipeline.
 - [x] Reduce desktop-side navigation delay when the user clicks Timeline or Preview while preserving hosted workflows.
+- [x] Extend the desktop-only fullscreen Preview overlay through the entire native window so no hosted app strip remains visible.
+- [x] Confirm from the supplied fullscreen captures that the visible defect is an uncovered hosted-app underlay below the local Preview overlay.
+- [x] Confirm from ordered boundary crops that the underlay spans the full width, so the repair must extend the Electron Preview view bounds rather than alter the video aspect ratio.
