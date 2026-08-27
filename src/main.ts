@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell, WebContentsView } from "electron";
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -273,6 +273,13 @@ async function stopDesktopRenderProcess(child: ChildProcess) {
     taskkill.once("error", () => { child.kill(); resolve(); });
   });
   return true;
+}
+
+function cancelDesktopRenderOnClose() {
+  const child = activeDesktopRender;
+  if (!child?.pid || child.exitCode !== null) return;
+  desktopRenderCancellationRequested = true;
+  spawnSync("taskkill.exe", ["/pid", String(child.pid), "/t", "/f"], { windowsHide: true });
 }
 
 function requireWindowsExecutable(filePath: string, expectedExtension: string, label: string) {
@@ -609,6 +616,7 @@ function createWindow() {
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false, sandbox: true, partition: SESSION_PARTITION },
   });
   hostedWindow = window;
+  window.on("close", cancelDesktopRenderOnClose);
   window.on("closed", () => { desktopPreviewView = null; desktopPreviewLoaded = false; desktopPreviewLoadPromise = null; desktopPreviewOpen = false; if (hostedWindow === window) hostedWindow = null; });
   window.on("resize", () => {
     positionDesktopPreview(window);
@@ -712,3 +720,4 @@ app.whenReady().then(() => {
 });
 
 app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });
+app.on("before-quit", cancelDesktopRenderOnClose);

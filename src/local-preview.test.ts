@@ -117,6 +117,8 @@ describe("desktop Preview-only local MP4 preview", () => {
     expect(main).toContain('"-FFmpegPath", ffmpegPath');
     expect(main).toContain("countGeneratedRenderFrames");
     expect(main).toContain('"desktop-preview:cancel-render"');
+    expect(main).toContain("cancelDesktopRenderOnClose");
+    expect(main).toContain('window.on("close", cancelDesktopRenderOnClose)');
     expect(main).toContain('path.join(outputDirectory, "render-approved-handoff.ps1")');
     expect(main).toContain("latestApprovedHandoff");
     expect(main).toContain("approvedPreviewProjects");

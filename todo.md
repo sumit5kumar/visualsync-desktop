@@ -59,6 +59,8 @@
 - [x] Extend the desktop-only fullscreen Preview overlay through the entire native window so no hosted app strip remains visible.
 - [x] Confirm from the supplied fullscreen captures that the visible defect is an uncovered hosted-app underlay below the local Preview overlay.
 - [x] Confirm from ordered boundary crops that the underlay spans the full width, so the repair must extend the Electron Preview view bounds rather than alter the video aspect ratio.
-- [ ] Show meaningful local-render preparation progress and time guidance before FFmpeg encoding begins.
-- [ ] Add a safe desktop-only Cancel render action that stops the active local render process.
-- [ ] Show an explicit successful local-render completion state with elapsed time and final-video-ready confirmation.
+- [x] Show meaningful local-render preparation progress and time guidance before FFmpeg encoding begins.
+- [x] Add a safe desktop-only Cancel render action that stops the active local render process.
+- [x] Show an explicit successful local-render completion state with elapsed time and final-video-ready confirmation.
+- [x] Cancel the currently active user-authorized local render safely.
+- [x] Automatically cancel the active local render process tree when the desktop application closes.
