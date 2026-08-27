@@ -75,6 +75,8 @@ describe("desktop Preview-only local MP4 preview", () => {
     expect(preview).toContain('id="videoTransport"');
     expect(preview).toContain('id="playbackSeek"');
     expect(preview).toContain('id="renderProgress"');
+    expect(preview).toContain('id="cancelRenderButton"');
+    expect(preview).toContain("render-progress.is-completed");
     expect(preview).toContain('id="renderProgressBar"');
     expect(preview).toContain('id="projectSelect"');
     expect(preview).toContain("color-scheme: dark");
@@ -96,8 +98,11 @@ describe("desktop Preview-only local MP4 preview", () => {
     expect(behavior).toContain("!document.body.classList.contains(\"video-stage-fullscreen\")");
     expect(behavior).toContain("playbackSeek.addEventListener");
     expect(behavior).toContain("beginRenderProgress");
+    expect(behavior).toContain("updatePreparationProgress");
     expect(behavior).toContain("updateEncodeProgress");
-    expect(behavior).toContain("estimate appears when encoding starts");
+    expect(behavior).toContain("cancelDesktopPreviewRender");
+    expect(behavior).toContain("final video ready");
+    expect(behavior).toContain("calculating the first preparation estimate");
     expect(behavior).toContain("desktop.onDesktopPreviewProjectChanged");
     expect(behavior).toContain("desktop.listDesktopPreviewProjects");
     expect(behavior).toContain("desktop.selectDesktopPreviewProject");
@@ -110,6 +115,8 @@ describe("desktop Preview-only local MP4 preview", () => {
     expect(main).toContain("localPathsForRender(handoff)");
     expect(main).toContain("resolveLocalFfmpegPath");
     expect(main).toContain('"-FFmpegPath", ffmpegPath');
+    expect(main).toContain("countGeneratedRenderFrames");
+    expect(main).toContain('"desktop-preview:cancel-render"');
     expect(main).toContain('path.join(outputDirectory, "render-approved-handoff.ps1")');
     expect(main).toContain("latestApprovedHandoff");
     expect(main).toContain("approvedPreviewProjects");

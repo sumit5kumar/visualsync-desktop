@@ -34,6 +34,7 @@
       .empty { position: relative; z-index: 2; width: 100%; height: 100%; min-height: 0; display: grid; place-items: center; padding: 28px; color: #8ea2b7; text-align: center; font-size: 14px; line-height: 1.55; transition: opacity 180ms cubic-bezier(.23,1,.32,1), transform 180ms cubic-bezier(.23,1,.32,1); }
       .empty::before { content: ""; width: 38px; height: 38px; margin-bottom: 14px; border: 1px solid rgba(142,238,250,.26); border-radius: 50%; box-shadow: inset 0 0 0 8px rgba(142,238,250,.045); }
       .actions { display: grid; place-items: center; margin-top: 0; }
+      .render-controls { display: flex; align-items: center; justify-content: center; gap: 9px; }
       .render-progress { width: min(560px, 100%); justify-self: center; display: grid; gap: 6px; padding: 10px 13px; border: 1px solid rgba(126, 235, 245, .2); border-radius: 13px; background: linear-gradient(135deg, rgba(8, 34, 49, .8), rgba(6, 18, 30, .84)); color: #dffcff; }
       .render-progress[hidden] { display: none; }
       .render-progress strong { font-size: 13px; }
@@ -41,6 +42,8 @@
       .progress-track { height: 7px; overflow: hidden; border-radius: 99px; background: rgba(205, 248, 255, .12); }
       .progress-track i { display: block; width: 3%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #7ee9f4, #91bfff); box-shadow: 0 0 18px rgba(126, 235, 245, .45); transition: width 280ms cubic-bezier(.23,1,.32,1); }
       .render-progress.is-preparing .progress-track i { width: 34%; animation: preparing 1.1s ease-in-out infinite alternate; }
+      .render-progress.is-completed { border-color: rgba(132, 241, 186, .34); background: linear-gradient(135deg, rgba(10, 57, 45, .82), rgba(6, 28, 33, .88)); }
+      .render-progress.is-completed .progress-track i { background: linear-gradient(90deg, #83f0ba, #7ee9f4); }
       @keyframes preparing { from { transform: translateX(-35%); } to { transform: translateX(190%); } }
       button { min-width: 204px; border: 1px solid rgba(196,250,255,.4); border-radius: 999px; padding: 13px 21px; cursor: pointer; background: linear-gradient(135deg, #9af3fc, #7fc8ff); color: #041a2a; font: 750 14px Inter, Segoe UI, sans-serif; letter-spacing: .01em; box-shadow: 0 10px 26px rgba(88,207,231,.22); transition: transform 160ms cubic-bezier(.23,1,.32,1), filter 160ms cubic-bezier(.23,1,.32,1), box-shadow 160ms cubic-bezier(.23,1,.32,1); }
       #fullscreenButton { position: absolute; z-index: 11; right: 14px; top: 14px; min-width: 0; padding: 8px 12px; border-radius: 999px; background: rgba(3, 13, 23, .72); border-color: rgba(196,250,255,.26); color: #d9faff; font-size: 12px; box-shadow: 0 8px 20px rgba(0,0,0,.26); opacity: 1; pointer-events: auto; }
@@ -48,6 +51,7 @@
       button:hover:not(:disabled) { filter: brightness(1.045); transform: translateY(-1px); box-shadow: 0 14px 32px rgba(88,207,231,.3); }
       button:active:not(:disabled) { transform: scale(.97); }
       button:disabled { cursor: wait; opacity: .68; }
+      #cancelRenderButton { min-width: 0; padding: 11px 15px; border-color: rgba(255, 195, 185, .34); background: rgba(72, 23, 27, .86); color: #ffd7d0; box-shadow: none; }
       .sr-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
       @media (prefers-reduced-motion: reduce) { *, *::before { transition: none !important; } }
     </style>
@@ -56,7 +60,7 @@
     <main>
       <div class="project-context"><span>Selected approved project</span><select id="projectSelect" aria-label="Selected approved project" disabled><option>Loading approved projects…</option></select><em id="videoSummary"></em></div>
       <div id="videoStage" class="stage"><video id="outputVideo" controls preload="metadata" hidden></video><div id="videoTransport" class="transport" hidden><button id="playPauseButton" type="button">Play</button><output id="playbackTime">0:00 / 0:00</output><input id="playbackSeek" type="range" min="0" max="1000" value="0" aria-label="Video playback position" /></div><button id="fullscreenButton" type="button" aria-label="Enter fullscreen" hidden>Fullscreen</button><div id="emptyState" class="empty">Preparing your local preview…</div></div>
-      <div class="actions"><button id="renderButton" type="button" disabled>Render video</button><div id="renderProgress" class="render-progress" hidden><strong id="renderProgressTitle">Preparing local render…</strong><div class="progress-track"><i id="renderProgressBar"></i></div><span id="renderProgressMeta">Elapsed 0:00 · calculating estimate…</span></div></div>
+      <div class="actions"><div class="render-controls"><button id="renderButton" type="button" disabled>Render video</button><button id="cancelRenderButton" type="button" hidden>Cancel render</button></div><div id="renderProgress" class="render-progress" hidden><strong id="renderProgressTitle">Preparing local render…</strong><div class="progress-track"><i id="renderProgressBar"></i></div><span id="renderProgressMeta">Elapsed 0:00 · calculating estimate…</span></div></div>
       <div id="status" class="sr-status" aria-live="polite"></div>
     </main>
     <script type="module" src="./desktop-preview.js"></script>

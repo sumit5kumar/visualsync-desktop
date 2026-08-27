@@ -12,6 +12,7 @@ const playPauseButton = document.getElementById("playPauseButton") as HTMLButton
 const playbackTime = document.getElementById("playbackTime") as HTMLOutputElement;
 const playbackSeek = document.getElementById("playbackSeek") as HTMLInputElement;
 const renderButton = document.getElementById("renderButton") as HTMLButtonElement;
+const cancelRenderButton = document.getElementById("cancelRenderButton") as HTMLButtonElement;
 const renderProgress = document.getElementById("renderProgress") as HTMLDivElement;
 const renderProgressTitle = document.getElementById("renderProgressTitle") as HTMLElement;
 const renderProgressBar = document.getElementById("renderProgressBar") as HTMLSpanElement;
@@ -25,6 +26,8 @@ let refreshVersion = 0;
 let renderStartedAt = 0;
 let renderEncodeStartedAt = 0;
 let renderDurationSeconds = 0;
+let preparationGeneratedFrames = 0;
+let preparationExpectedFrames = 0;
 let renderProgressTimer: ReturnType<typeof setInterval> | null = null;
 
 function setVideoStageFullscreen(active: boolean) {
@@ -55,20 +58,39 @@ function formatElapsed(milliseconds: number) {
 
 function updatePreparingProgress() {
   if (!renderStartedAt || !renderProgress.classList.contains("is-preparing")) return;
-  renderProgressMeta.textContent = `Elapsed ${formatElapsed(Date.now() - renderStartedAt)} · estimate appears when encoding starts`;
+  const elapsedMilliseconds = Date.now() - renderStartedAt;
+  if (preparationExpectedFrames > 0) {
+    const percent = Math.min(99, (preparationGeneratedFrames / preparationExpectedFrames) * 100);
+    const framesPerSecond = preparationGeneratedFrames / Math.max(0.1, elapsedMilliseconds / 1000);
+    const remainingSeconds = (preparationExpectedFrames - preparationGeneratedFrames) / Math.max(0.1, framesPerSecond);
+    renderProgressTitle.textContent = `Preparing video frames · ${Math.round(percent)}%`;
+    renderProgressBar.style.width = `${Math.max(3, percent).toFixed(1)}%`;
+    renderProgressMeta.textContent = `Frames ${preparationGeneratedFrames.toLocaleString()} / ${preparationExpectedFrames.toLocaleString()} · about ${formatElapsed(remainingSeconds * 1000)} remaining · elapsed ${formatElapsed(elapsedMilliseconds)}`;
+    return;
+  }
+  renderProgressMeta.textContent = `Elapsed ${formatElapsed(elapsedMilliseconds)} · calculating the first preparation estimate…`;
 }
 
 function beginRenderProgress() {
   renderStartedAt = Date.now();
   renderEncodeStartedAt = 0;
   renderDurationSeconds = 0;
+  preparationGeneratedFrames = 0;
+  preparationExpectedFrames = 0;
   renderProgress.hidden = false;
   renderProgress.classList.add("is-preparing");
+  renderProgress.classList.remove("is-completed");
   renderProgressTitle.textContent = "Preparing local render…";
   renderProgressBar.style.width = "3%";
   updatePreparingProgress();
   if (renderProgressTimer) clearInterval(renderProgressTimer);
   renderProgressTimer = setInterval(updatePreparingProgress, 1000);
+}
+
+function updatePreparationProgress(generatedFrames: number, expectedFrames: number) {
+  preparationGeneratedFrames = Math.max(0, generatedFrames);
+  preparationExpectedFrames = Math.max(0, expectedFrames);
+  updatePreparingProgress();
 }
 
 function renderTimeToSeconds(value: string) {
@@ -97,9 +119,14 @@ function finishRenderProgress(success: boolean, message?: string) {
   if (renderProgressTimer) clearInterval(renderProgressTimer);
   renderProgressTimer = null;
   renderProgress.classList.remove("is-preparing");
-  renderProgressTitle.textContent = success ? "Local render completed" : "Local render needs attention";
+  renderProgress.classList.toggle("is-completed", success);
+  renderProgressTitle.textContent = success ? "Local render completed · final video ready" : "Local render needs attention";
   renderProgressBar.style.width = "100%";
-  renderProgressMeta.textContent = success ? `Completed in ${formatElapsed(Date.now() - renderStartedAt)}` : message ?? "Render did not complete. Please review the message above.";
+  renderProgressMeta.textContent = success ? `Completed in ${formatElapsed(Date.now() - renderStartedAt)} · the final video is ready in this Preview` : message ?? "Render did not complete. Please review the message above.";
+  if (success) status.textContent = "Local render completed. The final video is ready in Preview.";
+  cancelRenderButton.hidden = true;
+  cancelRenderButton.disabled = false;
+  cancelRenderButton.textContent = "Cancel render";
 }
 
 function applyProjectOptions(projects: Awaited<ReturnType<typeof desktop.listDesktopPreviewProjects>>, selectedProjectId: number | null) {
@@ -207,6 +234,8 @@ renderButton.addEventListener("click", async () => {
   if (!canRender) return;
   renderButton.disabled = true;
   renderButton.textContent = "Rendering…";
+  cancelRenderButton.hidden = false;
+  cancelRenderButton.disabled = false;
   document.body.classList.add("is-loading");
   beginRenderProgress();
   status.textContent = "Local render started for the selected approved project.";
@@ -221,11 +250,24 @@ renderButton.addEventListener("click", async () => {
   }
 });
 
+cancelRenderButton.addEventListener("click", async () => {
+  cancelRenderButton.disabled = true;
+  cancelRenderButton.textContent = "Cancelling…";
+  try {
+    const cancelled = await desktop.cancelDesktopPreviewRender();
+    if (!cancelled) finishRenderProgress(false, "No active local render was found to cancel.");
+  } catch (error) {
+    finishRenderProgress(false, error instanceof Error ? error.message : "The local render could not be cancelled.");
+  }
+});
+
 desktop.onRenderEvent(event => {
   if (typeof event !== "object" || !event || !("type" in event)) return;
-  const renderEvent = event as { type?: string; line?: string; message?: string };
+  const renderEvent = event as { type?: string; line?: string; message?: string; generatedFrames?: number; expectedFrames?: number };
+  if (renderEvent.type === "preparing" && typeof renderEvent.generatedFrames === "number" && typeof renderEvent.expectedFrames === "number") updatePreparationProgress(renderEvent.generatedFrames, renderEvent.expectedFrames);
   if (renderEvent.type === "output" && renderEvent.line) updateEncodeProgress(renderEvent.line);
   if (renderEvent.type === "completed") { finishRenderProgress(true); void refreshPreview(); }
+  if (renderEvent.type === "cancelled") finishRenderProgress(false, renderEvent.message);
   if (renderEvent.type === "failed") finishRenderProgress(false, renderEvent.message);
 });
 

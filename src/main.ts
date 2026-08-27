@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell, WebContentsView } from "electron";
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -26,6 +26,8 @@ let desktopPreviewLoaded = false;
 let desktopPreviewLoadPromise: Promise<void> | null = null;
 let desktopPreviewOpen = false;
 let desktopPreviewRenderInProgress = false;
+let activeDesktopRender: ChildProcess | null = null;
+let desktopRenderCancellationRequested = false;
 let restoringHostedRouteAfterPreview = false;
 let desktopPreviewFullscreen = false;
 let desktopPreviewProjectId: number | null = null;
@@ -238,6 +240,41 @@ function emitRenderEvent(event: LocalRenderEvent) {
   BrowserWindow.getAllWindows().forEach(window => window.webContents.send("local-render:event", event));
 }
 
+async function renderPreparationFrameTarget(handoffPath: string) {
+  try {
+    const parsed = JSON.parse(await fs.readFile(handoffPath, "utf8")) as { timeline?: Array<{ endMs?: unknown }>; output?: { frameRate?: unknown } };
+    const endMs = Number(parsed.timeline?.at(-1)?.endMs);
+    const frameRate = Number(parsed.output?.frameRate) || 30;
+    return Number.isFinite(endMs) && endMs > 0 ? Math.ceil((endMs / 1000) * frameRate) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function countGeneratedRenderFrames(outputDirectory: string) {
+  const countIn = async (directory: string): Promise<number> => {
+    const entries = await fs.readdir(directory, { withFileTypes: true }).catch(() => []);
+    const counts = await Promise.all(entries.map(async entry => {
+      const entryPath = path.join(directory, entry.name);
+      if (entry.isDirectory()) return entry.name.startsWith(".visualsync-") ? countIn(entryPath) : 0;
+      return /^frame_\d+\.jpg$/i.test(entry.name) ? 1 : 0;
+    }));
+    return counts.reduce((sum, value) => sum + value, 0);
+  };
+  return countIn(outputDirectory);
+}
+
+async function stopDesktopRenderProcess(child: ChildProcess) {
+  if (!child.pid || child.exitCode !== null) return false;
+  desktopRenderCancellationRequested = true;
+  await new Promise<void>(resolve => {
+    const taskkill = spawn("taskkill.exe", ["/pid", String(child.pid), "/t", "/f"], { windowsHide: true });
+    taskkill.once("exit", () => resolve());
+    taskkill.once("error", () => { child.kill(); resolve(); });
+  });
+  return true;
+}
+
 function requireWindowsExecutable(filePath: string, expectedExtension: string, label: string) {
   if (process.platform !== "win32") throw new Error(`${label} is available only in the Windows desktop app.`);
   if (path.extname(filePath).toLowerCase() !== expectedExtension) throw new Error(`Choose a valid ${label} (${expectedExtension}).`);
@@ -368,11 +405,32 @@ async function runApprovedLocalRender(request: LocalRenderRequest) {
   emitRenderEvent({ type: "started", command: `powershell.exe ${argumentsList.map(value => JSON.stringify(value)).join(" ")}` });
   await new Promise<void>((resolve, reject) => {
     const child = spawn("powershell.exe", argumentsList, { windowsHide: true });
+    activeDesktopRender = child;
+    desktopRenderCancellationRequested = false;
+    let frameProgressTimer: ReturnType<typeof setInterval> | null = null;
+    void renderPreparationFrameTarget(request.handoffPath).then(expectedFrames => {
+      if (!expectedFrames || child.exitCode !== null) return;
+      const reportProgress = () => {
+        void countGeneratedRenderFrames(request.outputDirectory).then(generatedFrames => {
+          if (child.exitCode === null) emitRenderEvent({ type: "preparing", generatedFrames, expectedFrames });
+        });
+      };
+      reportProgress();
+      frameProgressTimer = setInterval(reportProgress, 2000);
+    });
     child.stdout.on("data", chunk => emitRenderEvent({ type: "output", line: String(chunk) }));
     child.stderr.on("data", chunk => emitRenderEvent({ type: "output", line: String(chunk) }));
-    child.once("error", error => { emitRenderEvent({ type: "failed", message: error.message }); reject(error); });
+    child.once("error", error => {
+      if (frameProgressTimer) clearInterval(frameProgressTimer);
+      if (activeDesktopRender === child) activeDesktopRender = null;
+      emitRenderEvent({ type: "failed", message: error.message });
+      reject(error);
+    });
     child.once("exit", exitCode => {
+      if (frameProgressTimer) clearInterval(frameProgressTimer);
+      if (activeDesktopRender === child) activeDesktopRender = null;
       if (exitCode === 0) { emitRenderEvent({ type: "completed", exitCode }); resolve(); }
+      else if (desktopRenderCancellationRequested) { const message = "Local render was cancelled."; emitRenderEvent({ type: "cancelled", message }); reject(new Error(message)); }
       else { const message = `Local render exited with code ${exitCode ?? "unknown"}.`; emitRenderEvent({ type: "failed", message }); reject(new Error(message)); }
     });
   });
@@ -474,6 +532,10 @@ function registerLocalHandlers() {
       const paths = await localPathsForRender(handoff);
       await runApprovedLocalRender(await prepareRenderFiles(handoff, paths));
     } finally { desktopPreviewRenderInProgress = false; }
+  });
+  ipcMain.handle("desktop-preview:cancel-render", async () => {
+    if (!activeDesktopRender) return false;
+    return stopDesktopRenderProcess(activeDesktopRender);
   });
   ipcMain.handle("local-render:run", async (_event, request: LocalRenderRequest) => runApprovedLocalRender(request));
 }

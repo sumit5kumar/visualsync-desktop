@@ -39,6 +39,8 @@ export type DesktopPreviewState = {
 
 export type LocalRenderEvent =
   | { type: "started"; command: string }
+  | { type: "preparing"; generatedFrames: number; expectedFrames: number }
   | { type: "output"; line: string }
   | { type: "completed"; exitCode: number }
+  | { type: "cancelled"; message: string }
   | { type: "failed"; message: string };

@@ -127,6 +127,7 @@ contextBridge.exposeInMainWorld("visualSyncDesktop", {
   listDesktopPreviewProjects: () => ipcRenderer.invoke("desktop-preview:list-projects") as Promise<DesktopPreviewProject[]>,
   selectDesktopPreviewProject: (projectId: number) => ipcRenderer.invoke("desktop-preview:select-project", projectId) as Promise<DesktopPreviewState>,
   renderDesktopPreview: () => ipcRenderer.invoke("desktop-preview:render") as Promise<void>,
+  cancelDesktopPreviewRender: () => ipcRenderer.invoke("desktop-preview:cancel-render") as Promise<boolean>,
   setDesktopPreviewFullscreen: (fullscreen: boolean) => ipcRenderer.invoke("desktop-preview:set-fullscreen", fullscreen) as Promise<boolean>,
   toggleDesktopPreviewFullscreen: () => ipcRenderer.invoke("desktop-preview:toggle-fullscreen") as Promise<boolean>,
   onDesktopPreviewFullscreenChanged: (listener: (fullscreen: boolean) => void) => {
