@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { isHostedVisualSyncCallback, isHostedVisualSyncUrl } from "./security.js";
 
-const appUrl = "https://visualsync-pnpeq6e6.manus.space";
+const appUrl = "https://visualsync-001-site1.htempurl.com";
 
 describe("desktop hosted-navigation security", () => {
   it("allows only the configured VisualSync app origin in the native-capability window", () => {

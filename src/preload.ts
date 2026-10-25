@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { DesktopPreviewProject, DesktopPreviewState, LocalOutputVideo, LocalProjectPaths, LocalRenderRequest } from "./contracts.js";
 
-const hostedOrigin = new URL(process.env.VISUALSYNC_APP_URL ?? "https://visualsync-pnpeq6e6.manus.space").origin;
+const hostedOrigin = new URL(process.env.VISUALSYNC_APP_URL ?? "https://visualsync-001-site1.htempurl.com").origin;
 let openingDesktopPreview = false;
 
 const isHostedPage = () => window.location.origin === hostedOrigin;

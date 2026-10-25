@@ -18,7 +18,7 @@
     "productName": "VisualSync Desktop",
     "electronDist": "node_modules/electron/dist",
     "directories": {
-      "output": "release"
+      "output": "release2"
     },
     "files": [
       "dist/**/*",

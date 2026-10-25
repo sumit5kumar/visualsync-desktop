@@ -7,7 +7,7 @@ import type { DesktopPreviewProject, DesktopPreviewState, LocalOutputVideo, Loca
 import { isHostedVisualSyncCallback, isHostedVisualSyncUrl } from "./security.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const APP_URL = process.env.VISUALSYNC_APP_URL ?? "https://visualsync-pnpeq6e6.manus.space";
+const APP_URL = process.env.VISUALSYNC_APP_URL ?? "https://visualsync-001-site1.htempurl.com";
 const SETTINGS_FILE = () => path.join(app.getPath("userData"), "local-project-paths.json");
 const SESSION_PARTITION = "persist:visualsync-desktop";
 
